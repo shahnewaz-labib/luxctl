@@ -39,30 +39,24 @@ impl Message {
     }
 
     pub fn print_labs(response: &PaginatedResponse<Lab>) {
-        Self::say(&format!(
-            "available labs ({} total):\n",
-            response.meta.total
-        ));
-
-        for lab in &response.data {
-            Self::print_lab(lab);
+        println!();
+        for (i, lab) in response.data.iter().enumerate() {
+            Self::print_lab(lab, i);
         }
     }
 
-    fn print_lab(lab: &Lab) {
-        println!("  {} {}", "#".dimmed(), lab.name.bold());
-        if let Some(desc) = &lab.short_description {
-            println!("    {}", desc);
-        }
-        let tasks_count = lab.tasks_count.unwrap_or(0);
+    fn print_lab(lab: &Lab, index: usize) {
         println!(
-            "    {} {}  {} {}",
-            "slug:".dimmed(),
-            lab.slug.dimmed(),
-            "tasks:".dimmed(),
-            tasks_count.to_string().dimmed()
+            "{}. {} {}",
+            index,
+            lab.name.bold(),
+            format!("/{}", lab.slug).dimmed()
         );
-        println!("    {} {}\n", "url:".dimmed(), lab.url().dimmed());
+        if let Some(desc) = &lab.short_description {
+            println!("{}", desc);
+        }
+        println!();
+        println!();
     }
 
     pub fn print_lab_detail(lab: &Lab) {
@@ -192,7 +186,7 @@ impl Message {
         println!("tasks for: {}\n", lab.name.bold());
 
         println!(
-            "  {}  {}  {}  {}",
+            "{}  {}  {}  {}",
             "#".dimmed(),
             format!("{:>6}", "Points").dimmed(),
             "Status".dimmed(),
@@ -219,7 +213,7 @@ impl Message {
             let index = format!("{:02}", i + 1);
             let points = format!("{:>6}", task.points);
             println!(
-                "  {}  {}  {}  {}",
+                "{}  {}  {}  {}",
                 index.dimmed(),
                 points.bold(),
                 status_display,
@@ -229,7 +223,7 @@ impl Message {
 
         println!();
         println!(
-            "  progress: {}/{} completed | {} XP earned",
+            "progress: {}/{} completed | {} XP earned",
             lab.completed_count().to_string().bold(),
             lab.tasks.len(),
             format!("{}/{}", lab.earned_points(), lab.total_points()).bold()

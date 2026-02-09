@@ -3,7 +3,7 @@ use color_eyre::eyre::Result;
 
 use luxctl::{
     api::LighthouseAPIClient, auth::TokenAuthenticator, commands, config::Config, greet,
-    message::Message, oops, VERSION,
+    message::Message, oops, LIGHTHOUSE_URL, VERSION,
 };
 
 #[derive(Parser)]
@@ -66,12 +66,34 @@ enum Commands {
 
     /// Check your environment and diagnose issues
     Doctor,
+
+    /// Project-specific helper tools (e.g., data generators)
+    Helper {
+        /// Helper name (e.g., 1brc)
+        name: String,
+
+        /// Number of rows to generate
+        #[arg(short = 'r', long, default_value = "10000")]
+        rows: u64,
+
+        /// Measurements output file
+        #[arg(short = 'm', long, default_value = "data/measurements.txt")]
+        measurements: String,
+
+        /// Expected output file
+        #[arg(short = 'e', long, default_value = "expected/output.txt")]
+        expected: String,
+    },
 }
 
 #[derive(Subcommand)]
 enum LabAction {
     /// See all available labs you can work on
-    List,
+    List {
+        /// Open in browser: no value opens /labs, with index opens that lab
+        #[arg(short = 'w', long, num_args = 0..=1, default_missing_value = "-1")]
+        web: Option<i32>,
+    },
     /// Get details about a lab before starting
     Show {
         #[arg(short = 's', long)]
@@ -79,8 +101,9 @@ enum LabAction {
     },
     /// Begin working on a lab in your current directory
     Start {
-        #[arg(short = 's', long)]
-        slug: String,
+        /// Lab slug or index from `lab list`
+        #[arg(short = 'i', long)]
+        id: String,
 
         /// Workspace directory (defaults to current directory)
         #[arg(short = 'w', long, default_value = ".")]
@@ -182,24 +205,13 @@ async fn main() -> Result<()> {
 
             let client = LighthouseAPIClient::from_config(&config);
             match client.me().await {
-                Ok(user) => {
-                    println!("{}", user.name);
-                    println!("{}", user.email);
-                    if let Some(stats) = user.stats {
-                        println!();
-                        println!("projects: {}", stats.projects_attempted);
-                        println!("tasks completed: {}", stats.tasks_completed);
-                        println!("total xp: {}", stats.total_xp);
-                    }
-                }
-                Err(err) => {
-                    oops!("failed to fetch user: {}", err);
-                }
+                Ok(user) => println!("{}", user.name),
+                Err(err) => oops!("failed to fetch user: {}", err),
             }
         }
 
         Commands::Lab { action } => match action {
-            LabAction::List => {
+            LabAction::List { web } => {
                 let config = Config::load()?;
                 if !config.has_auth_token() {
                     oops!("not authenticated. Run: `{}`", Commands::AUTH_USAGE);
@@ -210,6 +222,17 @@ async fn main() -> Result<()> {
                 match client.labs(None, None).await {
                     Ok(response) => {
                         Message::print_labs(&response);
+                        if let Some(index) = web {
+                            let url = if index < 0 {
+                                format!("{}/labs", LIGHTHOUSE_URL)
+                            } else if let Some(lab) = response.data.get(index as usize) {
+                                lab.url()
+                            } else {
+                                oops!("invalid index: {}", index);
+                                return Ok(());
+                            };
+                            let _ = std::process::Command::new("open").arg(&url).spawn();
+                        }
                     }
                     Err(err) => {
                         oops!("failed to fetch labs: {}", err);
@@ -234,11 +257,35 @@ async fn main() -> Result<()> {
                 }
             }
             LabAction::Start {
-                slug,
+                id,
                 workspace,
                 runtime,
             } => {
-                commands::lab::start(&slug, &workspace, runtime.as_deref()).await?;
+                let actual_slug = if let Ok(index) = id.parse::<usize>() {
+                    let config = Config::load()?;
+                    if !config.has_auth_token() {
+                        oops!("not authenticated. Run: `{}`", Commands::AUTH_USAGE);
+                        return Ok(());
+                    }
+                    let client = LighthouseAPIClient::from_config(&config);
+                    match client.labs(None, None).await {
+                        Ok(response) => {
+                            if let Some(lab) = response.data.get(index) {
+                                lab.slug.clone()
+                            } else {
+                                oops!("invalid index: {}", index);
+                                return Ok(());
+                            }
+                        }
+                        Err(err) => {
+                            oops!("failed to fetch labs: {}", err);
+                            return Ok(());
+                        }
+                    }
+                } else {
+                    id
+                };
+                commands::lab::start(&actual_slug, &workspace, runtime.as_deref()).await?;
             }
             LabAction::Status => {
                 commands::lab::status()?;
@@ -294,6 +341,15 @@ async fn main() -> Result<()> {
 
         Commands::Doctor => {
             commands::doctor::run().await?;
+        }
+
+        Commands::Helper {
+            name,
+            rows,
+            measurements,
+            expected,
+        } => {
+            commands::helpers::run(&name, rows, &measurements, &expected)?;
         }
     }
 

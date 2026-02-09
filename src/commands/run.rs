@@ -30,7 +30,7 @@ pub async fn run(task_id: &str, lab_slug: Option<&str>, detailed: bool) -> Resul
                 l.slug.clone()
             } else {
                 oops!("no lab specified and no active lab");
-                say!("use `--lab <SLUG>` or run `luxctl lab start --slug <SLUG>` first");
+                say!("use `--lab <ID>` or run `luxctl lab start --id <ID>` first");
                 return Ok(());
             }
         }
@@ -302,6 +302,7 @@ mod tests {
             status: TaskStatus::ChallengeAwaits,
             is_free: false,
             is_locked: false,
+            is_paid: false,
             abandoned_deduction: 5,
             points_earned: 0,
             hints: vec![],
