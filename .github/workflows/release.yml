@@ -76,7 +76,16 @@ jobs:
           fi
           echo "Version verified: $CARGO_VERSION"
 
-      - name: Publish to crates.io
+      - name: Publish lux-blueprint to crates.io
+        if: steps.check_release.outputs.exists == 'false'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          cargo publish -p lux-blueprint --dry-run
+          cargo publish -p lux-blueprint || echo "lux-blueprint already published at this version, skipping"
+          sleep 15
+
+      - name: Publish luxctl to crates.io
         if: steps.check_release.outputs.exists == 'false'
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

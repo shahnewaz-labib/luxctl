@@ -145,21 +145,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "blueprint"
-version = "0.1.0"
-dependencies = [
- "color-eyre",
- "colored",
- "regex",
- "reqwest",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tokio-test",
-]
-
-[[package]]
 name = "bumpalo"
 version = "3.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1152,11 +1137,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 
 [[package]]
+name = "lux-blueprint"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "colored",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-test",
+]
+
+[[package]]
 name = "luxctl"
 version = "0.8.1"
 dependencies = [
  "async-trait",
- "blueprint",
  "chrono",
  "clap",
  "color-eyre",
@@ -1166,6 +1165,7 @@ dependencies = [
  "hex",
  "hmac",
  "log",
+ "lux-blueprint",
  "nix",
  "once_cell",
  "rand",

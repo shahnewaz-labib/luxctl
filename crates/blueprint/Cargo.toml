@@ -1,5 +1,5 @@
 [package]
-name = "blueprint"
+name = "lux-blueprint"
 version = "0.1.0"
 edition = "2021"
 description = "Blueprint DSL parser, transpiler, and executor for luxctl"
