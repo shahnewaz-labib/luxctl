@@ -8,7 +8,7 @@ use std::{collections::HashMap, env};
 use crate::{config::Config, VERSION};
 
 use super::types::{
-    ApiError, ApiUser, Exercise, HealthCheckResponse, HintsResponse, Lab, PaginatedResponse,
+    ApiError, ApiUser, HealthCheckResponse, HintsResponse, Lab, PaginatedResponse, Terminal,
     RestartLabResponse, SubmitAnswerRequest, SubmitAnswerResponse, SubmitAttemptRequest,
     SubmitAttemptResponse, UnlockHintResponse,
 };
@@ -213,11 +213,18 @@ impl LighthouseAPIClient {
             .await
     }
 
-    /// fetch a lab exercise by slug (includes test_files + blueprint)
-    pub async fn exercise_by_slug(&self, slug: &str) -> Result<Exercise> {
+    /// fetch available terminals (discovery list, no test_files/blueprint)
+    pub async fn terminals(&self) -> Result<Vec<Terminal>> {
         let headers = self.auth_headers()?;
-        let endpoint = format!("exercises/{}", slug);
-        self.get::<Exercise>(&endpoint, None, Some(headers)).await
+        self.get::<Vec<Terminal>>("terminals", None, Some(headers))
+            .await
+    }
+
+    /// fetch a terminal by slug (includes test_files + blueprint)
+    pub async fn terminal_by_slug(&self, slug: &str) -> Result<Terminal> {
+        let headers = self.auth_headers()?;
+        let endpoint = format!("terminals/{}", slug);
+        self.get::<Terminal>(&endpoint, None, Some(headers)).await
     }
 
     /// restart a lab from scratch (creates new attempt group)

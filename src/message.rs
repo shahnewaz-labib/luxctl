@@ -1,7 +1,7 @@
 use colored::Colorize;
 use termimad::MadSkin;
 
-use crate::api::{Lab, PaginatedResponse, Task, TaskStatus};
+use crate::api::{Lab, PaginatedResponse, Task, TaskStatus, Terminal};
 use crate::state::ActiveLab;
 use crate::tasks::{TestCase, TestResults};
 
@@ -111,6 +111,40 @@ impl Message {
                     println!("    {}", line);
                 }
             }
+        }
+    }
+
+    pub fn print_terminals(terminals: &[Terminal]) {
+        if terminals.is_empty() {
+            println!("no terminals available");
+            return;
+        }
+
+        println!();
+        for (i, terminal) in terminals.iter().enumerate() {
+            println!(
+                "{}. {} {}",
+                i,
+                terminal.name.bold(),
+                format!("/{}", terminal.slug).dimmed()
+            );
+            if let Some(ref tier) = Some(&terminal.tier) {
+                println!("   {}", tier.dimmed());
+            }
+            println!();
+        }
+    }
+
+    pub fn print_terminal_detail(terminal: &Terminal) {
+        println!("  {} {}", "#".dimmed(), terminal.name.bold());
+        println!("    {} {}", "slug:".dimmed(), terminal.slug.dimmed());
+        println!("    {} {}", "tier:".dimmed(), terminal.tier.dimmed());
+
+        if terminal.has_blueprint() {
+            println!("    {} yes", "blueprint:".dimmed());
+        }
+        if terminal.has_test_files() {
+            println!("    {} yes", "test files:".dimmed());
         }
     }
 

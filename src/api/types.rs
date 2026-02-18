@@ -103,11 +103,11 @@ fn default_tier() -> String {
     "seeker".to_string()
 }
 
-/// lab exercise data (single-file exercises like LRU Cache).
-/// unlike projects (multi-task), exercises have one blueprint and test_files
+/// terminal data (single-file DSA challenges like LRU Cache).
+/// unlike projects (multi-task), terminals have one blueprint and test_files
 /// that are injected at validation time.
 #[derive(Debug, Deserialize)]
-pub struct Exercise {
+pub struct Terminal {
     pub id: i32,
     pub slug: String,
     pub name: String,
@@ -120,7 +120,7 @@ pub struct Exercise {
     pub test_files: Option<HashMap<String, String>>,
 }
 
-impl Exercise {
+impl Terminal {
     pub fn has_blueprint(&self) -> bool {
         self.blueprint.as_ref().is_some_and(|s| !s.is_empty())
     }
@@ -785,7 +785,7 @@ mod tests {
     }
 
     #[test]
-    fn test_exercise_deserialize() {
+    fn test_terminal_deserialize() {
         let json = r#"{
             "id": 1,
             "slug": "lru-cache",
@@ -797,38 +797,38 @@ mod tests {
             }
         }"#;
 
-        let exercise: Exercise = serde_json::from_str(json).unwrap();
+        let terminal: Terminal = serde_json::from_str(json).unwrap();
 
-        assert_eq!(exercise.id, 1);
-        assert_eq!(exercise.slug, "lru-cache");
-        assert_eq!(exercise.name, "LRU Cache");
-        assert_eq!(exercise.tier, "seeker");
-        assert!(exercise.has_blueprint());
-        assert!(exercise.has_test_files());
+        assert_eq!(terminal.id, 1);
+        assert_eq!(terminal.slug, "lru-cache");
+        assert_eq!(terminal.name, "LRU Cache");
+        assert_eq!(terminal.tier, "seeker");
+        assert!(terminal.has_blueprint());
+        assert!(terminal.has_test_files());
 
-        let files = exercise.test_files.unwrap();
+        let files = terminal.test_files.unwrap();
         assert_eq!(files.len(), 1);
         assert!(files.contains_key("lru-cache/lru_cache_test.go"));
     }
 
     #[test]
-    fn test_exercise_without_optional_fields() {
+    fn test_terminal_without_optional_fields() {
         let json = r#"{
             "id": 2,
             "slug": "binary-search",
             "name": "Binary Search"
         }"#;
 
-        let exercise: Exercise = serde_json::from_str(json).unwrap();
+        let terminal: Terminal = serde_json::from_str(json).unwrap();
 
-        assert_eq!(exercise.slug, "binary-search");
-        assert_eq!(exercise.tier, "seeker");
-        assert!(!exercise.has_blueprint());
-        assert!(!exercise.has_test_files());
+        assert_eq!(terminal.slug, "binary-search");
+        assert_eq!(terminal.tier, "seeker");
+        assert!(!terminal.has_blueprint());
+        assert!(!terminal.has_test_files());
     }
 
     #[test]
-    fn test_exercise_voyage_tier() {
+    fn test_terminal_voyage_tier() {
         let json = r#"{
             "id": 3,
             "slug": "http-server",
@@ -836,7 +836,7 @@ mod tests {
             "tier": "voyage"
         }"#;
 
-        let exercise: Exercise = serde_json::from_str(json).unwrap();
-        assert_eq!(exercise.tier, "voyage");
+        let terminal: Terminal = serde_json::from_str(json).unwrap();
+        assert_eq!(terminal.tier, "voyage");
     }
 }

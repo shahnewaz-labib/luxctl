@@ -8,4 +8,5 @@ pub mod result;
 pub mod run;
 pub mod task;
 pub mod tasks;
+pub mod terminal;
 pub mod validate;

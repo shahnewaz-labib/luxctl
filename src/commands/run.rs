@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use blueprint::reporter::CliReporter;
 use color_eyre::eyre::{Result, WrapErr};
 
-use crate::api::{Exercise, LighthouseAPIClient, SubmitAttemptRequest, Task, TaskStatus};
+use crate::api::{LighthouseAPIClient, SubmitAttemptRequest, Task, TaskStatus, Terminal};
 use crate::commands::blueprint_runner::{self, TaskSystem};
 use crate::config::Config;
 use crate::shell;
@@ -216,28 +216,28 @@ pub async fn submit_and_update(
     }
 }
 
-/// run a lab exercise: inject test_files → run blueprint → clean up.
+/// run a terminal: inject test_files → run blueprint → clean up.
 /// test files are written to workspace just before execution and removed after,
 /// preventing users from reading them to cheat.
-pub async fn run_exercise(exercise: &Exercise, workspace: &Path, detailed: bool) -> Result<()> {
-    let ui = RunUI::new(&exercise.slug, 0);
+pub async fn run_terminal(terminal: &Terminal, workspace: &Path, detailed: bool) -> Result<()> {
+    let ui = RunUI::new(&terminal.slug, 0);
     ui.header();
     ui.blank_line();
 
-    let bp_source = match &exercise.blueprint {
+    let bp_source = match &terminal.blueprint {
         Some(bp) if !bp.is_empty() => bp,
         _ => {
-            oops!("no blueprint defined for exercise '{}'", exercise.slug);
+            oops!("no blueprint defined for terminal '{}'", terminal.slug);
             return Ok(());
         }
     };
 
-    let test_files = exercise.test_files.as_ref().cloned().unwrap_or_default();
+    let test_files = terminal.test_files.as_ref().cloned().unwrap_or_default();
     let written_paths = write_test_files(workspace, &test_files)?;
 
     ui.step("Running blueprint...");
 
-    let bp_result = blueprint_runner::run_validate(bp_source, &exercise.slug, Some(workspace.to_path_buf())).await;
+    let bp_result = blueprint_runner::run_validate(bp_source, &terminal.slug, Some(workspace.to_path_buf())).await;
 
     // always clean up test files, even if blueprint failed
     cleanup_test_files(&written_paths);

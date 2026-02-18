@@ -87,6 +87,12 @@ enum Commands {
         action: HintAction,
     },
 
+    /// Single-file DSA challenges (LRU Cache, Group Anagrams, etc.)
+    Terminal {
+        #[command(subcommand)]
+        action: TerminalAction,
+    },
+
     /// Check your environment and diagnose issues
     Doctor,
 
@@ -188,6 +194,30 @@ enum HintAction {
         #[arg(short = 'i', long)]
         hint: String,
     },
+}
+
+#[derive(Subcommand)]
+enum TerminalAction {
+    /// See all available terminal challenges
+    List,
+    /// Set the active terminal and workspace
+    Start {
+        #[arg(short = 's', long)]
+        slug: String,
+
+        /// Workspace directory (defaults to current directory)
+        #[arg(short = 'w', long, default_value = ".")]
+        workspace: String,
+    },
+    /// Run the active terminal's blueprint against your solution
+    Run {
+        #[arg(short = 'd', long)]
+        detailed: bool,
+    },
+    /// See active terminal info
+    Status,
+    /// Clear the active terminal
+    Stop,
 }
 
 impl Commands {
@@ -338,6 +368,24 @@ async fn main() -> Result<()> {
             }
             TaskAction::Show { task, detailed } => {
                 commands::task::show(&task, detailed).await?;
+            }
+        },
+
+        Commands::Terminal { action } => match action {
+            TerminalAction::List => {
+                commands::terminal::list().await?;
+            }
+            TerminalAction::Start { slug, workspace } => {
+                commands::terminal::start(&slug, &workspace).await?;
+            }
+            TerminalAction::Run { detailed } => {
+                commands::terminal::run_active(detailed).await?;
+            }
+            TerminalAction::Status => {
+                commands::terminal::status()?;
+            }
+            TerminalAction::Stop => {
+                commands::terminal::stop()?;
             }
         },
 
