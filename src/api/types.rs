@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::LIGHTHOUSE_URL;
@@ -94,6 +96,31 @@ pub struct Lab {
 impl Lab {
     pub fn url(&self) -> String {
         format!("{}/labs/{}", LIGHTHOUSE_URL, self.slug)
+    }
+}
+
+/// lab exercise data (single-file exercises like LRU Cache).
+/// unlike projects (multi-task), exercises have one blueprint and test_files
+/// that are injected at validation time.
+#[derive(Debug, Deserialize)]
+pub struct Exercise {
+    pub id: i32,
+    pub slug: String,
+    pub name: String,
+    #[serde(default)]
+    pub blueprint: Option<String>,
+    /// map of relative path → file content, written to workspace before validation
+    #[serde(default)]
+    pub test_files: Option<HashMap<String, String>>,
+}
+
+impl Exercise {
+    pub fn has_blueprint(&self) -> bool {
+        self.blueprint.as_ref().is_some_and(|s| !s.is_empty())
+    }
+
+    pub fn has_test_files(&self) -> bool {
+        self.test_files.as_ref().is_some_and(|m| !m.is_empty())
     }
 }
 
@@ -749,5 +776,45 @@ mod tests {
         assert_eq!(response.message, "Incorrect answer.");
         assert!(response.points_earned.is_none());
         assert_eq!(response.attempts, Some(3));
+    }
+
+    #[test]
+    fn test_exercise_deserialize() {
+        let json = r#"{
+            "id": 1,
+            "slug": "lru-cache",
+            "name": "LRU Cache",
+            "blueprint": "blueprint \"LRU Cache\" { }",
+            "test_files": {
+                "lru-cache/lru_cache_test.go": "package lru_cache\nimport \"testing\"\n"
+            }
+        }"#;
+
+        let exercise: Exercise = serde_json::from_str(json).unwrap();
+
+        assert_eq!(exercise.id, 1);
+        assert_eq!(exercise.slug, "lru-cache");
+        assert_eq!(exercise.name, "LRU Cache");
+        assert!(exercise.has_blueprint());
+        assert!(exercise.has_test_files());
+
+        let files = exercise.test_files.unwrap();
+        assert_eq!(files.len(), 1);
+        assert!(files.contains_key("lru-cache/lru_cache_test.go"));
+    }
+
+    #[test]
+    fn test_exercise_without_optional_fields() {
+        let json = r#"{
+            "id": 2,
+            "slug": "binary-search",
+            "name": "Binary Search"
+        }"#;
+
+        let exercise: Exercise = serde_json::from_str(json).unwrap();
+
+        assert_eq!(exercise.slug, "binary-search");
+        assert!(!exercise.has_blueprint());
+        assert!(!exercise.has_test_files());
     }
 }

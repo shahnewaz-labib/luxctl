@@ -1,9 +1,10 @@
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 use blueprint::reporter::CliReporter;
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{Result, WrapErr};
 
-use crate::api::{LighthouseAPIClient, SubmitAttemptRequest, Task, TaskStatus};
+use crate::api::{Exercise, LighthouseAPIClient, SubmitAttemptRequest, Task, TaskStatus};
 use crate::commands::blueprint_runner::{self, TaskSystem};
 use crate::config::Config;
 use crate::shell;
@@ -215,6 +216,70 @@ pub async fn submit_and_update(
     }
 }
 
+/// run a lab exercise: inject test_files → run blueprint → clean up.
+/// test files are written to workspace just before execution and removed after,
+/// preventing users from reading them to cheat.
+pub async fn run_exercise(exercise: &Exercise, workspace: &Path, detailed: bool) -> Result<()> {
+    let ui = RunUI::new(&exercise.slug, 0);
+    ui.header();
+    ui.blank_line();
+
+    let bp_source = match &exercise.blueprint {
+        Some(bp) if !bp.is_empty() => bp,
+        _ => {
+            oops!("no blueprint defined for exercise '{}'", exercise.slug);
+            return Ok(());
+        }
+    };
+
+    let test_files = exercise.test_files.as_ref().cloned().unwrap_or_default();
+    let written_paths = write_test_files(workspace, &test_files)?;
+
+    ui.step("Running blueprint...");
+
+    let bp_result = blueprint_runner::run_validate(bp_source, &exercise.slug, Some(workspace.to_path_buf())).await;
+
+    // always clean up test files, even if blueprint failed
+    cleanup_test_files(&written_paths);
+
+    let bp_result = bp_result?;
+
+    CliReporter::print_result(&bp_result, detailed);
+
+    Ok(())
+}
+
+/// write test files to workspace. returns the absolute paths of files written
+/// so they can be cleaned up after execution.
+fn write_test_files(workspace: &Path, files: &HashMap<String, String>) -> Result<Vec<PathBuf>> {
+    let mut written = Vec::new();
+
+    for (relative_path, content) in files {
+        let target = workspace.join(relative_path);
+
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent)
+                .wrap_err_with(|| format!("failed to create directory for test file: {}", parent.display()))?;
+        }
+
+        std::fs::write(&target, content)
+            .wrap_err_with(|| format!("failed to write test file: {}", target.display()))?;
+
+        written.push(target);
+    }
+
+    Ok(written)
+}
+
+/// remove injected test files after blueprint execution
+fn cleanup_test_files(paths: &[PathBuf]) {
+    for path in paths {
+        if let Err(e) = std::fs::remove_file(path) {
+            log::warn!("failed to clean up test file {}: {}", path.display(), e);
+        }
+    }
+}
+
 /// run epilogue commands with best-effort (continues even on failure)
 async fn run_epilogue(ui: &RunUI, commands: &[String]) {
     if commands.is_empty() {
@@ -327,5 +392,58 @@ mod tests {
 
         let result = shell::run_commands(&commands).await;
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_write_test_files_creates_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut files = HashMap::new();
+        files.insert("lru-cache/lru_cache_test.go".to_string(), "package lru_cache\n".to_string());
+
+        let written = write_test_files(dir.path(), &files).unwrap();
+
+        assert_eq!(written.len(), 1);
+        let content = std::fs::read_to_string(&written[0]).unwrap();
+        assert_eq!(content, "package lru_cache\n");
+    }
+
+    #[test]
+    fn test_write_test_files_creates_nested_dirs() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut files = HashMap::new();
+        files.insert("deep/nested/dir/test.go".to_string(), "test\n".to_string());
+
+        let written = write_test_files(dir.path(), &files).unwrap();
+
+        assert!(dir.path().join("deep/nested/dir/test.go").exists());
+        assert_eq!(written.len(), 1);
+    }
+
+    #[test]
+    fn test_cleanup_test_files_removes_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("test.go");
+        std::fs::write(&file_path, "content").unwrap();
+        assert!(file_path.exists());
+
+        cleanup_test_files(&[file_path.clone()]);
+
+        assert!(!file_path.exists());
+    }
+
+    #[test]
+    fn test_cleanup_test_files_handles_missing_files() {
+        // should not panic when file doesn't exist
+        let path = PathBuf::from("/tmp/luxctl-nonexistent-cleanup-test");
+        cleanup_test_files(&[path]);
+    }
+
+    #[test]
+    fn test_write_empty_test_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let files = HashMap::new();
+
+        let written = write_test_files(dir.path(), &files).unwrap();
+        assert!(written.is_empty());
     }
 }

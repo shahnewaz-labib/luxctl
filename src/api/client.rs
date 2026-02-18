@@ -8,7 +8,7 @@ use std::{collections::HashMap, env};
 use crate::{config::Config, VERSION};
 
 use super::types::{
-    ApiError, ApiUser, HealthCheckResponse, HintsResponse, Lab, PaginatedResponse,
+    ApiError, ApiUser, Exercise, HealthCheckResponse, HintsResponse, Lab, PaginatedResponse,
     RestartLabResponse, SubmitAnswerRequest, SubmitAnswerResponse, SubmitAttemptRequest,
     SubmitAttemptResponse, UnlockHintResponse,
 };
@@ -211,6 +211,13 @@ impl LighthouseAPIClient {
         let endpoint = format!("tasks/{}/submit", task_identifier);
         self.post::<SubmitAnswerResponse, _>(&endpoint, request, Some(headers))
             .await
+    }
+
+    /// fetch a lab exercise by slug (includes test_files + blueprint)
+    pub async fn exercise_by_slug(&self, slug: &str) -> Result<Exercise> {
+        let headers = self.auth_headers()?;
+        let endpoint = format!("exercises/{}", slug);
+        self.get::<Exercise>(&endpoint, None, Some(headers)).await
     }
 
     /// restart a lab from scratch (creates new attempt group)
