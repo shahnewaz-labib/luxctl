@@ -97,7 +97,7 @@ pub async fn run_result(
 /// convert a BlueprintResult into a SubmitAttemptRequest for the API
 pub fn to_attempt_request(
     result: &BlueprintResult,
-    lab_slug: &str,
+    project_slug: &str,
     task_id: i32,
 ) -> SubmitAttemptRequest {
     let outcome = match &result.status {
@@ -116,7 +116,7 @@ pub fn to_attempt_request(
     };
 
     SubmitAttemptRequest {
-        lab_slug: lab_slug.to_string(),
+        project_slug: project_slug.to_string(),
         task_id,
         task_outcome: outcome,
         points_achieved: None,
@@ -224,8 +224,8 @@ mod tests {
             input_provided: HashMap::new(),
         };
 
-        let req = to_attempt_request(&bp_result, "my-lab", 42);
-        assert_eq!(req.lab_slug, "my-lab");
+        let req = to_attempt_request(&bp_result, "my-project", 42);
+        assert_eq!(req.project_slug, "my-project");
         assert_eq!(req.task_id, 42);
         assert!(matches!(req.task_outcome, TaskOutcome::Passed));
         assert!(req.task_outcome_context.is_some());

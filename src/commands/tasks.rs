@@ -3,7 +3,7 @@ use color_eyre::eyre::Result;
 use crate::api::LighthouseAPIClient;
 use crate::config::Config;
 use crate::message::Message;
-use crate::state::LabState;
+use crate::state::ProjectState;
 use crate::ui::UI;
 
 /// handle `luxctl tasks [--refresh]`
@@ -17,13 +17,13 @@ pub async fn list(refresh: bool) -> Result<()> {
         return Ok(());
     }
 
-    let mut state = LabState::load(config.expose_token())?;
+    let mut state = ProjectState::load(config.expose_token())?;
 
     let lab = if let Some(l) = state.get_active() {
         l.clone()
     } else {
-        UI::error("no active lab", None);
-        UI::note("run `luxctl lab start --id <ID>` first");
+        UI::error("no active project", None);
+        UI::note("run `luxctl project start --id <ID>` first");
         return Ok(());
     };
 
@@ -31,11 +31,11 @@ pub async fn list(refresh: bool) -> Result<()> {
     if refresh || lab.tasks.is_empty() {
         let client = LighthouseAPIClient::from_config(&config);
 
-        let fresh_lab = match client.lab_by_slug(&lab.slug).await {
+        let fresh_lab = match client.project_by_slug(&lab.slug).await {
             Ok(l) => l,
             Err(err) => {
                 UI::error(
-                    &format!("failed to fetch lab '{}'", lab.slug),
+                    &format!("failed to fetch project '{}'", lab.slug),
                     Some(&format!("{}", err)),
                 );
                 return Ok(());

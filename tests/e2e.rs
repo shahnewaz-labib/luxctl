@@ -149,34 +149,34 @@ fn e2e_whoami_unauthenticated() {
 
 #[test]
 #[ignore]
-fn e2e_lab_list() {
+fn e2e_project_list() {
     require_api();
     let token = require_token();
 
-    let output = luxctl_with_token(&["lab", "list"], &token);
+    let output = luxctl_with_token(&["project", "list"], &token);
 
     assert!(
         output.status.success(),
-        "lab list failed: {}",
+        "project list failed: {}",
         stderr(&output)
     );
     // should show at least some output (labs or empty message)
     let out = stdout(&output);
-    assert!(!out.is_empty(), "expected lab list output");
+    assert!(!out.is_empty(), "expected project list output");
 }
 
 #[test]
 #[ignore]
-fn e2e_lab_show() {
+fn e2e_project_show() {
     require_api();
     let token = require_token();
 
-    // use 1brc as the test lab (from the project context)
-    let output = luxctl_with_token(&["lab", "show", "--slug", "1brc"], &token);
+    // use 1brc as the test project
+    let output = luxctl_with_token(&["project", "show", "--slug", "1brc"], &token);
 
     let err = stderr(&output);
 
-    // either shows lab details or "not found" - both are valid responses
+    // either shows project details or "not found" - both are valid responses
     assert!(
         output.status.success() || err.contains("not found"),
         "unexpected error: {}",
@@ -186,14 +186,14 @@ fn e2e_lab_show() {
 
 #[test]
 #[ignore]
-fn e2e_lab_lifecycle() {
+fn e2e_project_lifecycle() {
     require_api();
     let token = require_token();
 
-    // 1. start a lab
+    // 1. start a project
     let output = luxctl_with_token(
         &[
-            "lab",
+            "project",
             "start",
             "--slug",
             "1brc",
@@ -206,7 +206,7 @@ fn e2e_lab_lifecycle() {
     let err = stderr(&output);
 
     if !output.status.success() && !err.contains("not found") {
-        panic!("lab start failed unexpectedly: {}", err);
+        panic!("project start failed unexpectedly: {}", err);
     }
 
     if output.status.success() {
@@ -217,16 +217,16 @@ fn e2e_lab_lifecycle() {
         );
 
         // 2. check status
-        let output = luxctl(&["lab", "status"]);
+        let output = luxctl(&["project", "status"]);
         assert!(
             output.status.success(),
-            "lab status failed: {}",
+            "project status failed: {}",
             stderr(&output)
         );
         let out = stdout(&output);
         assert!(
             out.contains("1brc") || out.contains("active"),
-            "expected active lab info, got: {}",
+            "expected active project info, got: {}",
             out
         );
 
@@ -238,24 +238,24 @@ fn e2e_lab_lifecycle() {
             stderr(&output)
         );
 
-        // 4. restart lab
-        let output = luxctl(&["lab", "restart"]);
+        // 4. restart project
+        let output = luxctl(&["project", "restart"]);
         assert!(
             output.status.success() || stdout(&output).contains("restarted"),
-            "lab restart failed: {}",
+            "project restart failed: {}",
             stderr(&output)
         );
 
-        // 5. stop lab
-        let output = luxctl(&["lab", "stop"]);
+        // 5. stop project
+        let output = luxctl(&["project", "stop"]);
         assert!(
             output.status.success(),
-            "lab stop failed: {}",
+            "project stop failed: {}",
             stderr(&output)
         );
         let out = stdout(&output);
         assert!(
-            out.contains("stopped") || out.contains("no active lab"),
+            out.contains("stopped") || out.contains("no active project"),
             "expected stop confirmation, got: {}",
             out
         );
@@ -268,10 +268,10 @@ fn e2e_task_show() {
     require_api();
     let token = require_token();
 
-    // start a lab first
+    // start a project first
     let _ = luxctl_with_token(
         &[
-            "lab",
+            "project",
             "start",
             "--slug",
             "1brc",
@@ -284,12 +284,12 @@ fn e2e_task_show() {
     // try to show first task
     let output = luxctl(&["task", "show", "--task", "1"]);
 
-    // might succeed or fail depending on lab state, but shouldn't crash
+    // might succeed or fail depending on project state, but shouldn't crash
     let combined = format!("{}{}", stdout(&output), stderr(&output));
     assert!(!combined.is_empty(), "expected some output from task show");
 
     // cleanup
-    let _ = luxctl(&["lab", "stop"]);
+    let _ = luxctl(&["project", "stop"]);
 }
 
 #[test]

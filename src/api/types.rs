@@ -60,14 +60,14 @@ pub struct UserStats {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct LabStats {
+pub struct ProjectStats {
     pub attempted_count: i32,
     pub succeed_count: i32,
     pub failed_count: i32,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Lab {
+pub struct Project {
     pub id: i32,
     #[serde(default)]
     pub uuid: String,
@@ -82,7 +82,7 @@ pub struct Lab {
     #[serde(default)]
     pub show_tasks: Option<bool>,
     #[serde(default)]
-    pub stats: Option<LabStats>,
+    pub stats: Option<ProjectStats>,
     #[serde(default)]
     pub published_at: Option<String>,
     #[serde(default)]
@@ -93,9 +93,9 @@ pub struct Lab {
     pub tasks: Option<Vec<Task>>,
 }
 
-impl Lab {
+impl Project {
     pub fn url(&self) -> String {
-        format!("{}/labs/{}", LIGHTHOUSE_URL, self.slug)
+        format!("{}/projects/{}", LIGHTHOUSE_URL, self.slug)
     }
 }
 
@@ -273,7 +273,7 @@ impl std::fmt::Display for TaskOutcome {
 /// request body for submitting a task attempt
 #[derive(Debug, Serialize)]
 pub struct SubmitAttemptRequest {
-    pub lab_slug: String,
+    pub project_slug: String,
     pub task_id: i32,
     pub task_outcome: TaskOutcome,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -293,7 +293,7 @@ pub struct SubmitAttemptResponse {
 pub struct AttemptData {
     pub id: i32,
     pub task_id: i32,
-    pub lab_id: i32,
+    pub project_id: i32,
     pub task_outcome: String,
     pub points_achieved: i32,
     pub is_reattempt: bool,
@@ -342,13 +342,13 @@ pub struct SubmitAnswerResponse {
 
 /// response from restarting a lab
 #[derive(Debug, Deserialize)]
-pub struct RestartLabResponse {
+pub struct RestartProjectResponse {
     pub message: String,
-    pub data: RestartLabData,
+    pub data: RestartProjectData,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct RestartLabData {
+pub struct RestartProjectData {
     pub attempt_group_id: i32,
     pub created_at: String,
 }
@@ -381,7 +381,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lab_deserialize() {
+    fn test_project_deserialize() {
         let json = r#"{
             "id": 2,
             "slug": "build-your-own-http-server",
@@ -399,23 +399,23 @@ mod tests {
             "tasks_count": 9
         }"#;
 
-        let lab: Lab = serde_json::from_str(json).unwrap();
+        let project: Project = serde_json::from_str(json).unwrap();
 
-        assert_eq!(lab.id, 2);
-        assert_eq!(lab.slug, "build-your-own-http-server");
-        assert_eq!(lab.name, "Build Your Own Server");
-        assert_eq!(lab.is_published, Some(true));
-        assert_eq!(lab.is_featured, Some(false));
-        assert_eq!(lab.show_tasks, Some(true));
-        let stats = lab.stats.unwrap();
+        assert_eq!(project.id, 2);
+        assert_eq!(project.slug, "build-your-own-http-server");
+        assert_eq!(project.name, "Build Your Own Server");
+        assert_eq!(project.is_published, Some(true));
+        assert_eq!(project.is_featured, Some(false));
+        assert_eq!(project.show_tasks, Some(true));
+        let stats = project.stats.unwrap();
         assert_eq!(stats.attempted_count, 10);
         assert_eq!(stats.succeed_count, 5);
         assert_eq!(stats.failed_count, 3);
-        assert_eq!(lab.tasks_count, Some(9));
+        assert_eq!(project.tasks_count, Some(9));
     }
 
     #[test]
-    fn test_lab_with_null_published_at() {
+    fn test_project_with_null_published_at() {
         let json = r#"{
             "id": 1,
             "slug": "test-lab",
@@ -433,13 +433,13 @@ mod tests {
             "tasks_count": 0
         }"#;
 
-        let lab: Lab = serde_json::from_str(json).unwrap();
+        let project: Project = serde_json::from_str(json).unwrap();
 
-        assert!(lab.published_at.is_none());
+        assert!(project.published_at.is_none());
     }
 
     #[test]
-    fn test_lab_detail_with_tasks() {
+    fn test_project_detail_with_tasks() {
         let json = r#"{
             "id": 1,
             "slug": "build-your-own-git",
@@ -470,13 +470,13 @@ mod tests {
             ]
         }"#;
 
-        let lab: Lab = serde_json::from_str(json).unwrap();
+        let project: Project = serde_json::from_str(json).unwrap();
 
-        assert_eq!(lab.id, 1);
-        assert_eq!(lab.slug, "build-your-own-git");
-        assert_eq!(lab.runner_image, Some("local|go|rust|c".to_string()));
+        assert_eq!(project.id, 1);
+        assert_eq!(project.slug, "build-your-own-git");
+        assert_eq!(project.runner_image, Some("local|go|rust|c".to_string()));
 
-        let tasks = lab.tasks.unwrap();
+        let tasks = project.tasks.unwrap();
         assert_eq!(tasks.len(), 1);
         assert_eq!(tasks[0].title, "Initialize a Repository");
         assert_eq!(tasks[0].status, TaskStatus::ChallengeAwaits);
@@ -530,7 +530,7 @@ mod tests {
             }
         }"#;
 
-        let response: PaginatedResponse<Lab> = serde_json::from_str(json).unwrap();
+        let response: PaginatedResponse<Project> = serde_json::from_str(json).unwrap();
 
         assert_eq!(response.data.len(), 2);
         assert_eq!(response.data[0].id, 1);
@@ -575,7 +575,7 @@ mod tests {
             }
         }"#;
 
-        let response: PaginatedResponse<Lab> = serde_json::from_str(json).unwrap();
+        let response: PaginatedResponse<Project> = serde_json::from_str(json).unwrap();
 
         assert!(response.data.is_empty());
         assert!(response.meta.from.is_none());

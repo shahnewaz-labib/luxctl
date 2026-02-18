@@ -6,7 +6,7 @@ use crate::api::LighthouseAPIClient;
 use crate::commands::run;
 use crate::config::Config;
 use crate::message::Message;
-use crate::state::LabState;
+use crate::state::ProjectState;
 use crate::ui::UI;
 use crate::{oops, say};
 
@@ -54,8 +54,8 @@ pub async fn start(slug: &str, workspace: &str) -> Result<()> {
 
     let workspace_str = canonical.to_string_lossy().to_string();
 
-    // reuse LabState with empty tasks — terminals don't have multi-task state
-    let mut state = LabState::load(config.expose_token())?;
+    // reuse ProjectState with empty tasks — terminals don't have multi-task state
+    let mut state = ProjectState::load(config.expose_token())?;
     state.set_active(slug, slug, &[], &workspace_str, None);
     state.save(config.expose_token())?;
 
@@ -74,7 +74,7 @@ pub async fn run_active(detailed: bool) -> Result<()> {
         return Ok(());
     }
 
-    let state = LabState::load(config.expose_token())?;
+    let state = ProjectState::load(config.expose_token())?;
     let active = match state.get_active() {
         Some(l) => l.clone(),
         None => {
@@ -106,11 +106,11 @@ pub fn status() -> Result<()> {
         return Ok(());
     }
 
-    let state = LabState::load(config.expose_token())?;
+    let state = ProjectState::load(config.expose_token())?;
 
-    if let Some(lab) = state.get_active() {
-        UI::kv_aligned("terminal", &lab.slug, 14);
-        UI::kv_aligned("workspace", &lab.workspace, 14);
+    if let Some(project) = state.get_active() {
+        UI::kv_aligned("terminal", &project.slug, 14);
+        UI::kv_aligned("workspace", &project.workspace, 14);
     } else {
         UI::info("no active terminal");
         UI::note("run `luxctl terminal start --slug <slug>` to start one");
@@ -127,7 +127,7 @@ pub fn stop() -> Result<()> {
         return Ok(());
     }
 
-    let mut state = LabState::load(config.expose_token())?;
+    let mut state = ProjectState::load(config.expose_token())?;
 
     if state.get_active().is_some() {
         let slug = state

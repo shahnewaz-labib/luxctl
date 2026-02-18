@@ -5,7 +5,7 @@
 //! to verify correct container behavior (namespaces, cgroups, chroot, etc).
 
 use crate::config::Config;
-use crate::state::LabState;
+use crate::state::ProjectState;
 use crate::tasks::TestCase;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -15,7 +15,7 @@ fn current_dir_fallback() -> PathBuf {
     std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
-/// get workspace from active lab state
+/// get workspace from active project state
 fn get_workspace() -> PathBuf {
     let config = match Config::load() {
         Ok(c) => c,
@@ -24,12 +24,12 @@ fn get_workspace() -> PathBuf {
     if !config.has_auth_token() {
         return current_dir_fallback();
     }
-    let state = match LabState::load(config.expose_token()) {
+    let state = match ProjectState::load(config.expose_token()) {
         Ok(s) => s,
         Err(_) => return current_dir_fallback(),
     };
     match state.get_active() {
-        Some(lab) => PathBuf::from(&lab.workspace),
+        Some(project) => PathBuf::from(&project.workspace),
         None => current_dir_fallback(),
     }
 }

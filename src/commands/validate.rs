@@ -6,7 +6,7 @@ use crate::api::LighthouseAPIClient;
 use crate::api::Task;
 use crate::commands::run::run_task_validators;
 use crate::config::Config;
-use crate::state::LabState;
+use crate::state::ProjectState;
 use crate::ui::RunUI;
 use crate::{oops, say};
 
@@ -74,31 +74,31 @@ pub async fn validate_all(include_passed: bool, detailed: bool) -> Result<()> {
     }
 
     let token = config.expose_token().to_string();
-    let mut state = LabState::load(&token)?;
+    let mut state = ProjectState::load(&token)?;
 
     let active = if let Some(l) = state.get_active() {
         l.clone()
     } else {
-        oops!("no active lab");
-        say!("run `luxctl lab start --id <ID>` first");
+        oops!("no active project");
+        say!("run `luxctl project start --id <ID>` first");
         return Ok(());
     };
 
     let client = LighthouseAPIClient::from_config(&config);
 
-    // fetch fresh lab data
-    let lab = match client.lab_by_slug(&active.slug).await {
+    // fetch fresh project data
+    let project = match client.project_by_slug(&active.slug).await {
         Ok(l) => l,
         Err(err) => {
-            oops!("failed to fetch lab: {}", err);
+            oops!("failed to fetch project: {}", err);
             return Ok(());
         }
     };
 
-    let tasks = if let Some(t) = &lab.tasks {
+    let tasks = if let Some(t) = &project.tasks {
         t
     } else {
-        oops!("lab has no tasks");
+        oops!("project has no tasks");
         return Ok(());
     };
 
@@ -109,7 +109,7 @@ pub async fn validate_all(include_passed: bool, detailed: bool) -> Result<()> {
     // filter tasks
     let filtered = filter_tasks_for_validation(tasks, include_passed);
 
-    say!("validating tasks for: {}", lab.name);
+    say!("validating tasks for: {}", project.name);
 
     if filtered.skipped_completed > 0 {
         say!(
@@ -140,7 +140,7 @@ pub async fn validate_all(include_passed: bool, detailed: bool) -> Result<()> {
 
         run_task_validators(
             &client,
-            &lab.slug,
+            &project.slug,
             task,
             Some((&mut state, &token)),
             workspace,

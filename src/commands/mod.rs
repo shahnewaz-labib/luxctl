@@ -3,7 +3,7 @@ pub mod doctor;
 pub mod export;
 pub mod helpers;
 pub mod hints;
-pub mod lab;
+pub mod project;
 pub mod result;
 pub mod run;
 pub mod task;

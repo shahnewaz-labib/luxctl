@@ -1,8 +1,8 @@
 use colored::Colorize;
 use termimad::MadSkin;
 
-use crate::api::{Lab, PaginatedResponse, Task, TaskStatus, Terminal};
-use crate::state::ActiveLab;
+use crate::api::{PaginatedResponse, Project, Task, TaskStatus, Terminal};
+use crate::state::ActiveProject;
 use crate::tasks::{TestCase, TestResults};
 
 // status symbols for consistent output (matching ui.rs)
@@ -38,40 +38,40 @@ impl Message {
         eprintln!("{}", msg.red());
     }
 
-    pub fn print_labs(response: &PaginatedResponse<Lab>) {
+    pub fn print_projects(response: &PaginatedResponse<Project>) {
         println!();
-        for (i, lab) in response.data.iter().enumerate() {
-            Self::print_lab(lab, i);
+        for (i, project) in response.data.iter().enumerate() {
+            Self::print_project(project, i);
         }
     }
 
-    fn print_lab(lab: &Lab, index: usize) {
+    fn print_project(project: &Project, index: usize) {
         println!(
             "{}. {} {}",
             index,
-            lab.name.bold(),
-            format!("/{}", lab.slug).dimmed()
+            project.name.bold(),
+            format!("/{}", project.slug).dimmed()
         );
-        if let Some(desc) = &lab.short_description {
+        if let Some(desc) = &project.short_description {
             println!("{}", desc);
         }
         println!();
         println!();
     }
 
-    pub fn print_lab_detail(lab: &Lab) {
-        println!("  {} {}", "#".dimmed(), lab.name.bold());
+    pub fn print_project_detail(project: &Project) {
+        println!("  {} {}", "#".dimmed(), project.name.bold());
 
-        if let Some(desc) = &lab.short_description {
+        if let Some(desc) = &project.short_description {
             println!("    {}", desc);
         }
 
-        println!("    {} {}", "slug:".dimmed(), lab.slug.dimmed());
-        println!("    {} {}", "url:".dimmed(), lab.url().dimmed());
+        println!("    {} {}", "slug:".dimmed(), project.slug.dimmed());
+        println!("    {} {}", "url:".dimmed(), project.url().dimmed());
 
         println!();
 
-        if let Some(tasks) = &lab.tasks {
+        if let Some(tasks) = &project.tasks {
             println!("  {} ({}):\n", "tasks".bold(), tasks.len());
 
             let task_count = tasks.len();
@@ -216,8 +216,8 @@ impl Message {
         println!("  {}", "./your-server".dimmed());
     }
 
-    pub fn print_task_list(lab: &ActiveLab) {
-        println!("tasks for: {}\n", lab.name.bold());
+    pub fn print_task_list(project: &ActiveProject) {
+        println!("tasks for: {}\n", project.name.bold());
 
         println!(
             "{}  {}  {}  {}",
@@ -227,7 +227,7 @@ impl Message {
             "Task".dimmed()
         );
 
-        for (i, task) in lab.tasks.iter().enumerate() {
+        for (i, task) in project.tasks.iter().enumerate() {
             let (status, status_color) = match task.status {
                 TaskStatus::ChallengeCompleted => (SYM_PASS.to_string(), "green"),
                 TaskStatus::ChallengeFailed => (SYM_FAIL.to_string(), "red"),
@@ -258,9 +258,9 @@ impl Message {
         println!();
         println!(
             "progress: {}/{} completed | {} XP earned",
-            lab.completed_count().to_string().bold(),
-            lab.tasks.len(),
-            format!("{}/{}", lab.earned_points(), lab.total_points()).bold()
+            project.completed_count().to_string().bold(),
+            project.tasks.len(),
+            format!("{}/{}", project.earned_points(), project.total_points()).bold()
         );
     }
 

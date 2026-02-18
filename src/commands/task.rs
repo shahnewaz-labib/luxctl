@@ -3,7 +3,7 @@ use color_eyre::eyre::Result;
 use crate::api::LighthouseAPIClient;
 use crate::config::Config;
 use crate::message::Message;
-use crate::state::LabState;
+use crate::state::ProjectState;
 use crate::ui::UI;
 
 /// handle `luxctl task --task <slug|number> [--detailed]`
@@ -17,22 +17,22 @@ pub async fn show(task_id: &str, detailed: bool) -> Result<()> {
         return Ok(());
     }
 
-    let state = LabState::load(config.expose_token())?;
+    let state = ProjectState::load(config.expose_token())?;
     let client = LighthouseAPIClient::from_config(&config);
 
-    let lab_slug = if let Some(l) = state.get_active() {
+    let project_slug = if let Some(l) = state.get_active() {
         l.slug.clone()
     } else {
-        UI::error("no active lab", None);
-        UI::note("run `luxctl lab start --id <ID>` first");
+        UI::error("no active project", None);
+        UI::note("run `luxctl project start --id <ID>` first");
         return Ok(());
     };
 
-    let lab_data = match client.lab_by_slug(&lab_slug).await {
+    let lab_data = match client.project_by_slug(&project_slug).await {
         Ok(l) => l,
         Err(err) => {
             UI::error(
-                &format!("failed to fetch lab '{}'", lab_slug),
+                &format!("failed to fetch project '{}'", project_slug),
                 Some(&format!("{}", err)),
             );
             return Ok(());
@@ -42,7 +42,7 @@ pub async fn show(task_id: &str, detailed: bool) -> Result<()> {
     let tasks = if let Some(t) = &lab_data.tasks {
         t
     } else {
-        UI::error(&format!("lab '{}' has no tasks", lab_slug), None);
+        UI::error(&format!("project '{}' has no tasks", project_slug), None);
         return Ok(());
     };
 
@@ -59,7 +59,7 @@ pub async fn show(task_id: &str, detailed: bool) -> Result<()> {
         t
     } else {
         UI::error(
-            &format!("task '{}' not found in lab '{}'", task_id, lab_slug),
+            &format!("task '{}' not found in project '{}'", task_id, project_slug),
             None,
         );
         return Ok(());

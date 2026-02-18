@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::runtime::SupportedRuntime;
-use crate::state::LabState;
+use crate::state::ProjectState;
 use crate::tasks::TestCase;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -17,8 +17,7 @@ impl CanCompileValidator {
     }
 
     pub async fn validate(&self) -> Result<TestCase, String> {
-        // get workspace and runtime from lab state
-        let (workspace, runtime) = get_lab_context();
+        let (workspace, runtime) = get_project_context();
         let workspace_path = workspace
             .map(PathBuf::from)
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
@@ -61,8 +60,8 @@ impl CanCompileValidator {
     }
 }
 
-/// get workspace and runtime from active lab state
-fn get_lab_context() -> (Option<String>, Option<String>) {
+/// get workspace and runtime from active project state
+fn get_project_context() -> (Option<String>, Option<String>) {
     let config = match Config::load() {
         Ok(c) => c,
         Err(_) => return (None, None),
@@ -70,12 +69,12 @@ fn get_lab_context() -> (Option<String>, Option<String>) {
     if !config.has_auth_token() {
         return (None, None);
     }
-    let state = match LabState::load(config.expose_token()) {
+    let state = match ProjectState::load(config.expose_token()) {
         Ok(s) => s,
         Err(_) => return (None, None),
     };
     match state.get_active() {
-        Some(lab) => (Some(lab.workspace.clone()), lab.runtime.clone()),
+        Some(project) => (Some(project.workspace.clone()), project.runtime.clone()),
         None => (None, None),
     }
 }

@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::state::LabState;
+use crate::state::ProjectState;
 use crate::tasks::TestCase;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -8,13 +8,13 @@ use tokio::time::{timeout, Duration};
 
 const DEFAULT_TIMEOUT_MS: u64 = 5000;
 
-/// get workspace from active lab state
+/// get workspace from active project state
 fn get_workspace() -> Option<PathBuf> {
     let config = Config::load().ok()?;
     if !config.has_auth_token() {
         return None;
     }
-    let state = LabState::load(config.expose_token()).ok()?;
+    let state = ProjectState::load(config.expose_token()).ok()?;
     state.get_active().map(|l| PathBuf::from(&l.workspace))
 }
 

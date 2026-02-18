@@ -2,10 +2,10 @@ use color_eyre::eyre::Result;
 
 use crate::api::LighthouseAPIClient;
 use crate::config::Config;
-use crate::state::LabState;
+use crate::state::ProjectState;
 use crate::ui::UI;
 
-/// handle `luxctl lab start --id <id> --workspace <path> [--runtime <runtime>]`
+/// handle `luxctl project start --id <id> --workspace <path> [--runtime <runtime>]`
 pub async fn start(slug: &str, workspace: &str, runtime: Option<&str>) -> Result<()> {
     let config = Config::load()?;
     if !config.has_auth_token() {
@@ -18,14 +18,14 @@ pub async fn start(slug: &str, workspace: &str, runtime: Option<&str>) -> Result
 
     let client = LighthouseAPIClient::from_config(&config);
 
-    let lab = match client.lab_by_slug(slug).await {
+    let project = match client.project_by_slug(slug).await {
         Ok(l) => l,
         Err(err) => {
             UI::error(
-                &format!("lab '{}' not found", slug),
+                &format!("project '{}' not found", slug),
                 Some(&format!("{}", err)),
             );
-            UI::note("run `luxctl lab list` to see available labs");
+            UI::note("run `luxctl project list` to see available projects");
             return Ok(());
         }
     };
@@ -45,13 +45,13 @@ pub async fn start(slug: &str, workspace: &str, runtime: Option<&str>) -> Result
 
     let workspace_str = canonical.to_string_lossy().to_string();
 
-    let tasks = lab.tasks.as_deref().unwrap_or(&[]);
+    let tasks = project.tasks.as_deref().unwrap_or(&[]);
 
-    let mut state = LabState::load(config.expose_token())?;
-    state.set_active(&lab.slug, &lab.name, tasks, &workspace_str, runtime);
+    let mut state = ProjectState::load(config.expose_token())?;
+    state.set_active(&project.slug, &project.name, tasks, &workspace_str, runtime);
     state.save(config.expose_token())?;
 
-    UI::success(&format!("now working on: {}", lab.name));
+    UI::success(&format!("now working on: {}", project.name));
     UI::kv("workspace", &workspace_str);
     if let Some(rt) = runtime {
         UI::kv("runtime", rt);
@@ -61,7 +61,7 @@ pub async fn start(slug: &str, workspace: &str, runtime: Option<&str>) -> Result
     Ok(())
 }
 
-/// handle `luxctl lab status`
+/// handle `luxctl project status`
 pub fn status() -> Result<()> {
     let config = Config::load()?;
     if !config.has_auth_token() {
@@ -72,36 +72,36 @@ pub fn status() -> Result<()> {
         return Ok(());
     }
 
-    let state = LabState::load(config.expose_token())?;
+    let state = ProjectState::load(config.expose_token())?;
 
-    if let Some(lab) = state.get_active() {
-        UI::kv_aligned("active lab", &lab.name, 14);
-        UI::kv_aligned("slug", &lab.slug, 14);
-        UI::kv_aligned("workspace", &lab.workspace, 14);
-        if let Some(ref rt) = lab.runtime {
-            UI::kv_aligned("runtime", rt, 14);
+    if let Some(project) = state.get_active() {
+        UI::kv_aligned("active project", &project.name, 16);
+        UI::kv_aligned("slug", &project.slug, 16);
+        UI::kv_aligned("workspace", &project.workspace, 16);
+        if let Some(ref rt) = project.runtime {
+            UI::kv_aligned("runtime", rt, 16);
         } else {
-            UI::kv_aligned("runtime", "not set", 14);
+            UI::kv_aligned("runtime", "not set", 16);
         }
         UI::kv_aligned(
             "progress",
             &format!(
                 "{}/{} tasks completed",
-                lab.completed_count(),
-                lab.tasks.len()
+                project.completed_count(),
+                project.tasks.len()
             ),
-            14,
+            16,
         );
         UI::note("run `luxctl task list` for task list");
     } else {
-        UI::info("no active lab");
-        UI::note("run `luxctl lab start --id <ID>` to start one");
+        UI::info("no active project");
+        UI::note("run `luxctl project start --id <ID>` to start one");
     }
 
     Ok(())
 }
 
-/// handle `luxctl lab stop`
+/// handle `luxctl project stop`
 pub fn stop() -> Result<()> {
     let config = Config::load()?;
     if !config.has_auth_token() {
@@ -112,7 +112,7 @@ pub fn stop() -> Result<()> {
         return Ok(());
     }
 
-    let mut state = LabState::load(config.expose_token())?;
+    let mut state = ProjectState::load(config.expose_token())?;
 
     if state.get_active().is_some() {
         let name = state
@@ -123,13 +123,13 @@ pub fn stop() -> Result<()> {
         state.save(config.expose_token())?;
         UI::success(&format!("stopped working on: {}", name));
     } else {
-        UI::info("no active lab to stop");
+        UI::info("no active project to stop");
     }
 
     Ok(())
 }
 
-/// handle `luxctl lab set --runtime <runtime>`
+/// handle `luxctl project set --runtime <runtime>`
 pub fn set_runtime(runtime: &str) -> Result<()> {
     let config = Config::load()?;
     if !config.has_auth_token() {
@@ -140,21 +140,21 @@ pub fn set_runtime(runtime: &str) -> Result<()> {
         return Ok(());
     }
 
-    let mut state = LabState::load(config.expose_token())?;
+    let mut state = ProjectState::load(config.expose_token())?;
 
     if state.get_active().is_some() {
         state.set_runtime(runtime);
         state.save(config.expose_token())?;
         UI::success(&format!("runtime set to: {}", runtime));
     } else {
-        UI::error("no active lab", None);
-        UI::note("run `luxctl lab start --id <ID>` first");
+        UI::error("no active project", None);
+        UI::note("run `luxctl project start --id <ID>` first");
     }
 
     Ok(())
 }
 
-/// handle `luxctl lab set --workspace <path>`
+/// handle `luxctl project set --workspace <path>`
 pub fn set_workspace(workspace: &str) -> Result<()> {
     let config = Config::load()?;
     if !config.has_auth_token() {
@@ -165,11 +165,11 @@ pub fn set_workspace(workspace: &str) -> Result<()> {
         return Ok(());
     }
 
-    let mut state = LabState::load(config.expose_token())?;
+    let mut state = ProjectState::load(config.expose_token())?;
 
     if state.get_active().is_none() {
-        UI::error("no active lab", None);
-        UI::note("run `luxctl lab start --id <ID>` first");
+        UI::error("no active project", None);
+        UI::note("run `luxctl project start --id <ID>` first");
         return Ok(());
     }
 
@@ -202,7 +202,7 @@ pub fn set_workspace(workspace: &str) -> Result<()> {
     Ok(())
 }
 
-/// handle `luxctl lab restart`
+/// handle `luxctl project restart`
 pub async fn restart() -> Result<()> {
     let config = Config::load()?;
     if !config.has_auth_token() {
@@ -213,31 +213,31 @@ pub async fn restart() -> Result<()> {
         return Ok(());
     }
 
-    let mut state = LabState::load(config.expose_token())?;
+    let mut state = ProjectState::load(config.expose_token())?;
 
-    let lab = match state.get_active() {
+    let project = match state.get_active() {
         Some(l) => l.clone(),
         None => {
-            UI::error("no active lab", None);
-            UI::note("run `luxctl lab start --id <ID>` first");
+            UI::error("no active project", None);
+            UI::note("run `luxctl project start --id <ID>` first");
             return Ok(());
         }
     };
 
     let client = LighthouseAPIClient::from_config(&config);
 
-    match client.restart_lab(&lab.slug).await {
+    match client.restart_project(&project.slug).await {
         Ok(response) => {
             // refresh tasks from server
-            match client.lab_by_slug(&lab.slug).await {
-                Ok(refreshed_lab) => {
-                    let tasks = refreshed_lab.tasks.as_deref().unwrap_or(&[]);
+            match client.project_by_slug(&project.slug).await {
+                Ok(refreshed) => {
+                    let tasks = refreshed.tasks.as_deref().unwrap_or(&[]);
                     state.set_active(
-                        &lab.slug,
-                        &lab.name,
+                        &project.slug,
+                        &project.name,
                         tasks,
-                        &lab.workspace,
-                        lab.runtime.as_deref(),
+                        &project.workspace,
+                        project.runtime.as_deref(),
                     );
                     state.save(config.expose_token())?;
                 }
@@ -248,11 +248,11 @@ pub async fn restart() -> Result<()> {
                 }
             }
 
-            UI::success(&format!("restarted lab: {}", lab.name));
+            UI::success(&format!("restarted project: {}", project.name));
             UI::info(&response.message);
         }
         Err(err) => {
-            UI::error("failed to restart lab", Some(&format!("{}", err)));
+            UI::error("failed to restart project", Some(&format!("{}", err)));
         }
     }
 

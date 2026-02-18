@@ -8,13 +8,13 @@ use crate::api::{LighthouseAPIClient, SubmitAttemptRequest, Task, TaskStatus, Te
 use crate::commands::blueprint_runner::{self, TaskSystem};
 use crate::config::Config;
 use crate::shell;
-use crate::state::LabState;
+use crate::state::ProjectState;
 use crate::ui::RunUI;
 use crate::{complain, oops, say};
 
-/// handle `luxctl run --task <slug|number> [--lab <slug>]`
+/// handle `luxctl run --task <slug|number> [--project <slug>]`
 /// task can be specified by slug or by number (1, 01, 2, 02, etc.)
-pub async fn run(task_id: &str, lab_slug: Option<&str>, detailed: bool) -> Result<()> {
+pub async fn run(task_id: &str, project_slug: Option<&str>, detailed: bool) -> Result<()> {
     let config = Config::load()?;
     if !config.has_auth_token() {
         oops!("not authenticated. Run: `luxctl auth --token $token`");
@@ -22,37 +22,37 @@ pub async fn run(task_id: &str, lab_slug: Option<&str>, detailed: bool) -> Resul
     }
 
     let token = config.expose_token().to_string();
-    let mut state = LabState::load(&token)?;
+    let mut state = ProjectState::load(&token)?;
     let client = LighthouseAPIClient::from_config(&config);
 
-    // determine lab slug (from arg or active lab)
-    let lab_slug = match lab_slug {
+    // determine project slug (from arg or active project)
+    let project_slug = match project_slug {
         Some(s) => s.to_string(),
         None => {
             if let Some(l) = state.get_active() {
                 l.slug.clone()
             } else {
-                oops!("no lab specified and no active lab");
-                say!("use `--lab <ID>` or run `luxctl lab start --id <ID>` first");
+                oops!("no project specified and no active project");
+                say!("use `--project <ID>` or run `luxctl project start --id <ID>` first");
                 return Ok(());
             }
         }
     };
 
-    // fetch lab with tasks
-    let lab_data = match client.lab_by_slug(&lab_slug).await {
+    // fetch project with tasks
+    let project_data = match client.project_by_slug(&project_slug).await {
         Ok(l) => l,
         Err(err) => {
-            oops!("failed to fetch lab '{}': {}", lab_slug, err);
+            oops!("failed to fetch project '{}': {}", project_slug, err);
             return Ok(());
         }
     };
 
     // get tasks list
-    let tasks = if let Some(t) = &lab_data.tasks {
+    let tasks = if let Some(t) = &project_data.tasks {
         t
     } else {
-        oops!("lab '{}' has no tasks", lab_slug);
+        oops!("project '{}' has no tasks", project_slug);
         return Ok(());
     };
 
@@ -73,7 +73,7 @@ pub async fn run(task_id: &str, lab_slug: Option<&str>, detailed: bool) -> Resul
         if let Some(t) = tasks.iter().find(|t| t.slug == task_id) {
             t
         } else {
-            oops!("task '{}' not found in lab '{}'", task_id, lab_slug);
+            oops!("task '{}' not found in project '{}'", task_id, project_slug);
             say!("use task number (1, 2, 3...) or slug:");
             for (i, t) in tasks.iter().enumerate() {
                 say!("  {:02}. {}", i + 1, t.slug);
@@ -88,7 +88,7 @@ pub async fn run(task_id: &str, lab_slug: Option<&str>, detailed: bool) -> Resul
 
     run_task_validators(
         &client,
-        &lab_data.slug,
+        &project_data.slug,
         task_data,
         Some((&mut state, &token)),
         workspace,
@@ -101,15 +101,15 @@ pub async fn run(task_id: &str, lab_slug: Option<&str>, detailed: bool) -> Resul
 /// optionally updates cached state when state_ctx is provided.
 pub async fn run_task_validators(
     client: &LighthouseAPIClient,
-    lab_slug: &str,
+    project_slug: &str,
     task: &Task,
-    state_ctx: Option<(&mut LabState, &str)>,
+    state_ctx: Option<(&mut ProjectState, &str)>,
     workspace: Option<PathBuf>,
     detailed: bool,
 ) -> Result<()> {
     match blueprint_runner::detect_system(task) {
         TaskSystem::Blueprint(source) => {
-            run_blueprint_task(client, lab_slug, task, source, state_ctx, workspace, detailed)
+            run_blueprint_task(client, project_slug, task, source, state_ctx, workspace, detailed)
                 .await
         }
         TaskSystem::None => {
@@ -125,10 +125,10 @@ pub async fn run_task_validators(
 /// run a task using the blueprint engine (parse → transpile → execute)
 async fn run_blueprint_task(
     client: &LighthouseAPIClient,
-    lab_slug: &str,
+    project_slug: &str,
     task: &Task,
     bp_source: &str,
-    state_ctx: Option<(&mut LabState, &str)>,
+    state_ctx: Option<(&mut ProjectState, &str)>,
     workspace: Option<PathBuf>,
     detailed: bool,
 ) -> Result<()> {
@@ -173,7 +173,7 @@ async fn run_blueprint_task(
     CliReporter::print_result(&bp_result, detailed);
 
     // submit attempt
-    let attempt_request = blueprint_runner::to_attempt_request(&bp_result, lab_slug, task.id);
+    let attempt_request = blueprint_runner::to_attempt_request(&bp_result, project_slug, task.id);
     submit_and_update(client, &attempt_request, &ui, task, state_ctx).await;
 
     run_epilogue(&ui, &task.epilogue).await;
@@ -186,7 +186,7 @@ pub async fn submit_and_update(
     attempt_request: &SubmitAttemptRequest,
     ui: &RunUI,
     task: &Task,
-    state_ctx: Option<(&mut LabState, &str)>,
+    state_ctx: Option<(&mut ProjectState, &str)>,
 ) {
     match client.submit_attempt(attempt_request).await {
         Ok(response) => {

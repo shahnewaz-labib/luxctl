@@ -25,10 +25,10 @@ enum Commands {
     /// See your profile and progress
     Whoami,
 
-    /// Labs are a series of challenges that build on each other, preparing you for real-world problems
-    Lab {
+    /// Projects are a series of challenges that build on each other, preparing you for real-world problems
+    Project {
         #[command(subcommand)]
-        action: LabAction,
+        action: ProjectAction,
     },
 
     /// Tasks are individual challenges within a project - tackle them in any order
@@ -39,8 +39,8 @@ enum Commands {
 
     /// Test your solution to see if it passes
     Run {
-        #[arg(short = 'l', long)]
-        lab: Option<String>,
+        #[arg(short = 'p', long)]
+        project: Option<String>,
 
         #[arg(short = 't', long)]
         task: String,
@@ -60,8 +60,8 @@ enum Commands {
 
     /// Submit answers for blueprint tasks that require user input
     Result {
-        #[arg(short = 'l', long)]
-        lab: Option<String>,
+        #[arg(short = 'p', long)]
+        project: Option<String>,
 
         #[arg(short = 't', long)]
         task: String,
@@ -116,21 +116,21 @@ enum Commands {
 }
 
 #[derive(Subcommand)]
-enum LabAction {
-    /// See all available labs you can work on
+enum ProjectAction {
+    /// See all available projects you can work on
     List {
-        /// Open in browser: no value opens /labs, with index opens that lab
+        /// Open in browser: no value opens /projects, with index opens that project
         #[arg(short = 'w', long, num_args = 0..=1, default_missing_value = "-1")]
         web: Option<i32>,
     },
-    /// Get details about a lab before starting
+    /// Get details about a project before starting
     Show {
         #[arg(short = 's', long)]
         slug: String,
     },
-    /// Begin working on a lab in your current directory
+    /// Begin working on a project in your current directory
     Start {
-        /// Lab slug or index from `lab list`
+        /// Project slug or index from `project list`
         #[arg(short = 'i', long)]
         id: String,
 
@@ -142,11 +142,11 @@ enum LabAction {
         #[arg(short = 'r', long)]
         runtime: Option<String>,
     },
-    /// See your progress on the current lab
+    /// See your progress on the current project
     Status,
-    /// Stop working on the current lab
+    /// Stop working on the current project
     Stop,
-    /// Change lab settings (runtime, workspace)
+    /// Change project settings (runtime, workspace)
     Set {
         /// Runtime environment (go, rust, c)
         #[arg(short = 'r', long)]
@@ -156,7 +156,7 @@ enum LabAction {
         #[arg(short = 'w', long)]
         workspace: Option<String>,
     },
-    /// Start fresh - reset all progress on the current lab
+    /// Start fresh - reset all progress on the current project
     Restart,
 }
 
@@ -263,8 +263,8 @@ async fn main() -> Result<()> {
             }
         }
 
-        Commands::Lab { action } => match action {
-            LabAction::List { web } => {
+        Commands::Project { action } => match action {
+            ProjectAction::List { web } => {
                 let config = Config::load()?;
                 if !config.has_auth_token() {
                     oops!("not authenticated. Run: `{}`", Commands::AUTH_USAGE);
@@ -272,14 +272,14 @@ async fn main() -> Result<()> {
                 }
 
                 let client = LighthouseAPIClient::from_config(&config);
-                match client.labs(None, None).await {
+                match client.projects(None, None).await {
                     Ok(response) => {
-                        Message::print_labs(&response);
+                        Message::print_projects(&response);
                         if let Some(index) = web {
                             let url = if index < 0 {
-                                format!("{}/labs", LIGHTHOUSE_URL)
-                            } else if let Some(lab) = response.data.get(index as usize) {
-                                lab.url()
+                                format!("{}/projects", LIGHTHOUSE_URL)
+                            } else if let Some(project) = response.data.get(index as usize) {
+                                project.url()
                             } else {
                                 oops!("invalid index: {}", index);
                                 return Ok(());
@@ -288,11 +288,11 @@ async fn main() -> Result<()> {
                         }
                     }
                     Err(err) => {
-                        oops!("failed to fetch labs: {}", err);
+                        oops!("failed to fetch projects: {}", err);
                     }
                 }
             }
-            LabAction::Show { slug } => {
+            ProjectAction::Show { slug } => {
                 let config = Config::load()?;
                 if !config.has_auth_token() {
                     oops!("not authenticated. Run: `{}`", Commands::AUTH_USAGE);
@@ -300,16 +300,16 @@ async fn main() -> Result<()> {
                 }
 
                 let client = LighthouseAPIClient::from_config(&config);
-                match client.lab_by_slug(&slug).await {
-                    Ok(lab) => {
-                        Message::print_lab_detail(&lab);
+                match client.project_by_slug(&slug).await {
+                    Ok(project) => {
+                        Message::print_project_detail(&project);
                     }
                     Err(err) => {
-                        oops!("failed to fetch lab: {}", err);
+                        oops!("failed to fetch project: {}", err);
                     }
                 }
             }
-            LabAction::Start {
+            ProjectAction::Start {
                 id,
                 workspace,
                 runtime,
@@ -321,44 +321,44 @@ async fn main() -> Result<()> {
                         return Ok(());
                     }
                     let client = LighthouseAPIClient::from_config(&config);
-                    match client.labs(None, None).await {
+                    match client.projects(None, None).await {
                         Ok(response) => {
-                            if let Some(lab) = response.data.get(index) {
-                                lab.slug.clone()
+                            if let Some(project) = response.data.get(index) {
+                                project.slug.clone()
                             } else {
                                 oops!("invalid index: {}", index);
                                 return Ok(());
                             }
                         }
                         Err(err) => {
-                            oops!("failed to fetch labs: {}", err);
+                            oops!("failed to fetch projects: {}", err);
                             return Ok(());
                         }
                     }
                 } else {
                     id
                 };
-                commands::lab::start(&actual_slug, &workspace, runtime.as_deref()).await?;
+                commands::project::start(&actual_slug, &workspace, runtime.as_deref()).await?;
             }
-            LabAction::Status => {
-                commands::lab::status()?;
+            ProjectAction::Status => {
+                commands::project::status()?;
             }
-            LabAction::Stop => {
-                commands::lab::stop()?;
+            ProjectAction::Stop => {
+                commands::project::stop()?;
             }
-            LabAction::Set { runtime, workspace } => {
+            ProjectAction::Set { runtime, workspace } => {
                 if let Some(ref rt) = runtime {
-                    commands::lab::set_runtime(rt)?;
+                    commands::project::set_runtime(rt)?;
                 }
                 if let Some(ref ws) = workspace {
-                    commands::lab::set_workspace(ws)?;
+                    commands::project::set_workspace(ws)?;
                 }
                 if runtime.is_none() && workspace.is_none() {
                     oops!("provide --runtime or --workspace to set");
                 }
             }
-            LabAction::Restart => {
-                commands::lab::restart().await?;
+            ProjectAction::Restart => {
+                commands::project::restart().await?;
             }
         },
 
@@ -390,19 +390,19 @@ async fn main() -> Result<()> {
         },
 
         Commands::Run {
-            lab,
+            project,
             task,
             detailed,
         } => {
-            commands::run::run(&task, lab.as_deref(), detailed).await?;
+            commands::run::run(&task, project.as_deref(), detailed).await?;
         }
 
         Commands::Validate { detailed, all } => {
             commands::validate::validate_all(all, detailed).await?;
         }
 
-        Commands::Result { lab, task, inputs } => {
-            commands::result::result(&task, &inputs, lab.as_deref()).await?;
+        Commands::Result { project, task, inputs } => {
+            commands::result::result(&task, &inputs, project.as_deref()).await?;
         }
 
         Commands::Export { file, format } => {

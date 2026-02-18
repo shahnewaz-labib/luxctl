@@ -8,13 +8,13 @@ use crate::commands::blueprint_runner;
 use crate::commands::run::submit_and_update;
 use crate::config::Config;
 use crate::shell;
-use crate::state::LabState;
+use crate::state::ProjectState;
 use crate::ui::RunUI;
 use crate::{oops, say};
 
 /// handle `luxctl result --task <slug|number> --input key=value`
 /// runs blueprint in Result mode, matching user-provided inputs against captured values
-pub async fn result(task_id: &str, inputs: &[String], lab_slug: Option<&str>) -> Result<()> {
+pub async fn result(task_id: &str, inputs: &[String], project_slug: Option<&str>) -> Result<()> {
     let config = Config::load()?;
     if !config.has_auth_token() {
         oops!("not authenticated. Run: `luxctl auth --token $token`");
@@ -22,26 +22,26 @@ pub async fn result(task_id: &str, inputs: &[String], lab_slug: Option<&str>) ->
     }
 
     let token = config.expose_token().to_string();
-    let mut state = LabState::load(&token)?;
+    let mut state = ProjectState::load(&token)?;
     let client = LighthouseAPIClient::from_config(&config);
 
-    let lab_slug = match lab_slug {
+    let project_slug = match project_slug {
         Some(s) => s.to_string(),
         None => {
             if let Some(l) = state.get_active() {
                 l.slug.clone()
             } else {
-                oops!("no lab specified and no active lab");
-                say!("use `--lab <ID>` or run `luxctl lab start --id <ID>` first");
+                oops!("no project specified and no active project");
+                say!("use `--project <ID>` or run `luxctl project start --id <ID>` first");
                 return Ok(());
             }
         }
     };
 
-    let lab_data = match client.lab_by_slug(&lab_slug).await {
+    let lab_data = match client.project_by_slug(&project_slug).await {
         Ok(l) => l,
         Err(err) => {
-            oops!("failed to fetch lab '{}': {}", lab_slug, err);
+            oops!("failed to fetch project '{}': {}", project_slug, err);
             return Ok(());
         }
     };
@@ -49,7 +49,7 @@ pub async fn result(task_id: &str, inputs: &[String], lab_slug: Option<&str>) ->
     let tasks = if let Some(t) = &lab_data.tasks {
         t
     } else {
-        oops!("lab '{}' has no tasks", lab_slug);
+        oops!("project '{}' has no tasks", project_slug);
         return Ok(());
     };
 
@@ -66,7 +66,7 @@ pub async fn result(task_id: &str, inputs: &[String], lab_slug: Option<&str>) ->
     } else if let Some(t) = tasks.iter().find(|t| t.slug == task_id) {
         t
     } else {
-        oops!("task '{}' not found in lab '{}'", task_id, lab_slug);
+        oops!("task '{}' not found in project '{}'", task_id, project_slug);
         return Ok(());
     };
 
@@ -119,7 +119,7 @@ pub async fn result(task_id: &str, inputs: &[String], lab_slug: Option<&str>) ->
 
     // submit attempt
     let attempt_request =
-        blueprint_runner::to_attempt_request(&bp_result, &lab_slug, task_data.id);
+        blueprint_runner::to_attempt_request(&bp_result, &project_slug, task_data.id);
     submit_and_update(
         &client,
         &attempt_request,
