@@ -99,6 +99,10 @@ impl Lab {
     }
 }
 
+fn default_tier() -> String {
+    "seeker".to_string()
+}
+
 /// lab exercise data (single-file exercises like LRU Cache).
 /// unlike projects (multi-task), exercises have one blueprint and test_files
 /// that are injected at validation time.
@@ -107,6 +111,8 @@ pub struct Exercise {
     pub id: i32,
     pub slug: String,
     pub name: String,
+    #[serde(default = "default_tier")]
+    pub tier: String,
     #[serde(default)]
     pub blueprint: Option<String>,
     /// map of relative path → file content, written to workspace before validation
@@ -784,6 +790,7 @@ mod tests {
             "id": 1,
             "slug": "lru-cache",
             "name": "LRU Cache",
+            "tier": "seeker",
             "blueprint": "blueprint \"LRU Cache\" { }",
             "test_files": {
                 "lru-cache/lru_cache_test.go": "package lru_cache\nimport \"testing\"\n"
@@ -795,6 +802,7 @@ mod tests {
         assert_eq!(exercise.id, 1);
         assert_eq!(exercise.slug, "lru-cache");
         assert_eq!(exercise.name, "LRU Cache");
+        assert_eq!(exercise.tier, "seeker");
         assert!(exercise.has_blueprint());
         assert!(exercise.has_test_files());
 
@@ -814,7 +822,21 @@ mod tests {
         let exercise: Exercise = serde_json::from_str(json).unwrap();
 
         assert_eq!(exercise.slug, "binary-search");
+        assert_eq!(exercise.tier, "seeker");
         assert!(!exercise.has_blueprint());
         assert!(!exercise.has_test_files());
+    }
+
+    #[test]
+    fn test_exercise_voyage_tier() {
+        let json = r#"{
+            "id": 3,
+            "slug": "http-server",
+            "name": "HTTP Server",
+            "tier": "voyage"
+        }"#;
+
+        let exercise: Exercise = serde_json::from_str(json).unwrap();
+        assert_eq!(exercise.tier, "voyage");
     }
 }
