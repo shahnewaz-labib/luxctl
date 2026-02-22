@@ -25,7 +25,7 @@ curl -fsSL https://raw.githubusercontent.com/thearyanahmed/luxctl/master/install
 cargo install luxctl
 
 # specific version
-cargo install luxctl --version 0.7.0
+cargo install luxctl --version 0.8.2
 ```
 
 ## Quick Start
@@ -43,34 +43,133 @@ luxctl whoami
 
 ## Usage
 
+### Projects
+
 ```bash
 # list available projects
 luxctl project list
 
-# start a project
-luxctl project start --slug tcp-echo-server --runtime go
+# list and open in browser
+luxctl project list --web
 
-# list tasks for current project
+# show project details
+luxctl project show --slug tcp-echo-server
+
+# start a project (by slug or index from list)
+luxctl project start --id tcp-echo-server --runtime go
+luxctl project start --id 0 --workspace ~/labs
+
+# see progress on the current project
+luxctl project status
+
+# change runtime or workspace
+luxctl project set --runtime rust
+luxctl project set --workspace ~/labs/redis
+
+# stop working on the current project
+luxctl project stop
+
+# reset all progress and start fresh
+luxctl project restart
+```
+
+### Tasks
+
+```bash
+# list tasks for the current project
 luxctl task list
+
+# force refresh from server
+luxctl task list --refresh
 
 # show task details
 luxctl task show --task 1
 
-# run validation
+# show full description
+luxctl task show --task 1 --detailed
+```
+
+### Running Validations
+
+```bash
+# run a single task
 luxctl run --task 1
 
 # run with verbose per-expectation output
 luxctl run --task 1 --detailed
 
-# validate all tasks
+# run against a specific project (overrides active project)
+luxctl run --task 1 --project tcp-echo-server
+
+# validate all tasks at once
 luxctl validate
 
 # validate all with verbose output
 luxctl validate --detailed
 
-# get hints (costs points)
+# validate across all started projects
+luxctl validate --all
+```
+
+### Submitting Results
+
+```bash
+# submit answers for blueprint tasks that require user input
+luxctl result --task 1 --input key=value --input another=value
+```
+
+### Hints
+
+```bash
+# list available hints for a task (may cost XP)
 luxctl hint list --task 1
+
+# reveal a specific hint
 luxctl hint unlock --task 1 --hint $hint_uuid
+```
+
+### Terminal Challenges
+
+Single-file DSA challenges (LRU Cache, Group Anagrams, etc.).
+
+```bash
+# list available terminal challenges
+luxctl terminal list
+
+# start a terminal challenge
+luxctl terminal start --slug lru-cache --workspace ~/challenges
+
+# run validation against your solution
+luxctl terminal run
+luxctl terminal run --detailed
+
+# see active terminal info
+luxctl terminal status
+
+# clear the active terminal
+luxctl terminal stop
+```
+
+### Helpers
+
+```bash
+# run project-specific data generators (e.g., 1 Billion Row Challenge)
+luxctl helper 1brc --rows 1000000 --measurements data/measurements.txt --expected expected/output.txt
+```
+
+### Export
+
+```bash
+# parse a .bp file and print transpiled IR as JSON (offline, no auth needed)
+luxctl export spec.bp
+luxctl export spec.bp --format json
+```
+
+### Diagnostics
+
+```bash
+# check environment and diagnose issues
+luxctl doctor
 ```
 
 ## Development
@@ -122,7 +221,7 @@ Releases are automated via GitHub Actions. To create a new release:
 4. Wait for Auto Tag workflow to create the version tag
 5. Trigger the Release workflow:
    ```bash
-   gh workflow run Release --field tag=v0.6.2
+   gh workflow run Release --field tag=v0.8.2
    ```
 
 The Release workflow will:
