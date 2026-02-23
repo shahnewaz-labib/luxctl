@@ -80,11 +80,28 @@ impl Engine {
         let mut step_results = Vec::new();
         let mut phase_status = Status::Passed;
 
+        // phase-level slug filtering: skip entire phase if slug doesn't match
+        if let Some(ref slug) = self.task_slug {
+            if let Some(ref phase_slug) = phase.meta.slug {
+                if phase_slug != slug {
+                    return Ok(PhaseResult {
+                        name: phase.name.clone(),
+                        status: Status::Skipped,
+                        steps: Vec::new(),
+                        duration_ms: 0,
+                    });
+                }
+            }
+        }
+
         for step in &phase.steps {
+            // step-level slug filtering: only when phase has no slug (backward compat)
             if let Some(ref slug) = self.task_slug {
-                if let Some(ref step_slug) = step.meta.slug {
-                    if step_slug != slug {
-                        continue;
+                if phase.meta.slug.is_none() {
+                    if let Some(ref step_slug) = step.meta.slug {
+                        if step_slug != slug {
+                            continue;
+                        }
                     }
                 }
             }

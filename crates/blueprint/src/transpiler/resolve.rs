@@ -75,23 +75,42 @@ fn resolve_phase(block: &crate::parser::ast::Block) -> Result<Phase, TranspileEr
         .ok_or_else(|| TranspileError::new("phase must have a name"))?;
     let mut depends_on = Vec::new();
     let mut steps = Vec::new();
+    let mut meta = PhaseMeta::default();
 
     for item in &block.items {
         match item {
-            crate::parser::ast::AstItem::Block(b) if b.block_type == "step" => {
-                steps.push(resolve_step(b)?);
-            }
-            crate::parser::ast::AstItem::Property(p) if p.key == "depends-on" => {
-                if let Some(dep) = p.value.as_str() {
-                    depends_on.push(dep.to_string());
+            crate::parser::ast::AstItem::Block(b) => match b.block_type.as_str() {
+                "step" => steps.push(resolve_step(b)?),
+                "hints" => meta.hints = resolve_hints_block(b)?,
+                _ => {}
+            },
+            crate::parser::ast::AstItem::Property(p) => match p.key.as_str() {
+                "depends-on" => {
+                    if let Some(dep) = p.value.as_str() {
+                        depends_on.push(dep.to_string());
+                    }
                 }
-            }
+                "title" => meta.title = p.value.as_str().map(|s| s.to_string()),
+                "slug" => meta.slug = p.value.as_str().map(|s| s.to_string()),
+                "description" => meta.description = p.value.as_str().map(|s| s.to_string()),
+                "points" => meta.points = p.value.as_i64().unwrap_or(0) as u32,
+                "scores" => meta.scores = p.value.as_str().map(|s| s.to_string()),
+                "is_free" => meta.is_free = p.value.as_bool().unwrap_or(false),
+                "visibility_level" => {
+                    meta.visibility_level = p.value.as_i64().unwrap_or(0) as u8
+                }
+                "abandoned_deduction" => {
+                    meta.abandoned_deduction = p.value.as_i64().unwrap_or(0) as u32
+                }
+                _ => {}
+            },
             _ => {}
         }
     }
 
     Ok(Phase {
         name,
+        meta,
         depends_on,
         steps,
     })
@@ -118,15 +137,6 @@ fn resolve_step(block: &crate::parser::ast::Block) -> Result<Step, TranspileErro
             crate::parser::ast::AstItem::Property(prop) => match prop.key.as_str() {
                 "slug" => meta.slug = prop.value.as_str().map(|s| s.to_string()),
                 "description" => meta.description = prop.value.as_str().map(|s| s.to_string()),
-                "points" => meta.points = prop.value.as_i64().unwrap_or(0) as u32,
-                "scores" => meta.scores = prop.value.as_str().map(|s| s.to_string()),
-                "is_free" => meta.is_free = prop.value.as_bool().unwrap_or(false),
-                "visibility_level" => {
-                    meta.visibility_level = prop.value.as_i64().unwrap_or(0) as u8
-                }
-                "abandoned_deduction" => {
-                    meta.abandoned_deduction = prop.value.as_i64().unwrap_or(0) as u32
-                }
                 "requires" => {
                     if let Some(s) = prop.value.as_str() {
                         requires.push(s.to_string());
@@ -150,9 +160,6 @@ fn resolve_step(block: &crate::parser::ast::Block) -> Result<Step, TranspileErro
                 }
                 "input" => {
                     inputs = resolve_input_block(b)?;
-                }
-                "hints" => {
-                    meta.hints = resolve_hints_block(b)?;
                 }
                 "headers" => {
                     headers = resolve_headers_block(b)?;
@@ -586,23 +593,64 @@ fn resolve_input_block(
 
 fn resolve_hints_block(block: &crate::parser::ast::Block) -> Result<Vec<Hint>, TranspileError> {
     let mut hints = Vec::new();
+    let mut sort_counter = 0u32;
+
     for item in &block.items {
-        if let crate::parser::ast::AstItem::Line(line) = item {
-            let text = line
-                .content
-                .trim()
-                .trim_start_matches('-')
-                .trim()
-                .trim_matches('"')
-                .trim_matches('\'')
-                .to_string();
-            if !text.is_empty() {
-                hints.push(Hint {
-                    text,
-                    unlock_criteria: None,
-                    points_deduction: 0,
-                });
+        match item {
+            // structured: hint { text: ... unlock_criteria: ... points_deduction: ... }
+            crate::parser::ast::AstItem::Block(b) if b.block_type == "hint" => {
+                sort_counter += 1;
+                let mut text = String::new();
+                let mut unlock_criteria = None;
+                let mut points_deduction = 0u32;
+
+                for sub in &b.items {
+                    if let crate::parser::ast::AstItem::Property(prop) = sub {
+                        match prop.key.as_str() {
+                            "text" => {
+                                text = prop.value.as_str().unwrap_or("").to_string();
+                            }
+                            "unlock_criteria" => {
+                                unlock_criteria = prop.value.as_str().map(|s| s.to_string());
+                            }
+                            "points_deduction" => {
+                                points_deduction = prop.value.as_i64().unwrap_or(0) as u32;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
+                if !text.is_empty() {
+                    hints.push(Hint {
+                        text,
+                        unlock_criteria,
+                        points_deduction,
+                        sort_order: sort_counter,
+                    });
+                }
             }
+            // simple list format: - "hint text" (backward compat)
+            crate::parser::ast::AstItem::Line(line) => {
+                let text = line
+                    .content
+                    .trim()
+                    .trim_start_matches('-')
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .to_string();
+                if !text.is_empty() {
+                    sort_counter += 1;
+                    hints.push(Hint {
+                        text,
+                        unlock_criteria: None,
+                        points_deduction: 0,
+                        sort_order: sort_counter,
+                    });
+                }
+            }
+            _ => {}
         }
     }
     Ok(hints)
@@ -1060,6 +1108,110 @@ blueprint "HTTP Server" {
         assert!(bp.meta.is_published);
         assert_eq!(bp.meta.features.len(), 2);
         assert_eq!(bp.meta.features[0].title, "Raw TCP Sockets");
+    }
+
+    #[test]
+    fn test_phase_metadata() {
+        let bp = transpile_str(
+            r#"
+blueprint "Test" {
+    phase "tcp" {
+        title: "Listen on Port"
+        slug: listen-on-port
+        description: "Create a TCP server"
+        points: 25
+        scores: "5:10:25|10:20:15"
+        visibility_level: 3
+        is_free: false
+        abandoned_deduction: 5
+
+        step "port open" {
+            slug: listen-on-port
+            probe tcp 4221
+            expect { connected: true }
+        }
+    }
+}
+"#,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let phase = &bp.phases[0];
+        assert_eq!(phase.meta.title.as_deref(), Some("Listen on Port"));
+        assert_eq!(phase.meta.slug.as_deref(), Some("listen-on-port"));
+        assert_eq!(phase.meta.description.as_deref(), Some("Create a TCP server"));
+        assert_eq!(phase.meta.points, 25);
+        assert_eq!(phase.meta.scores.as_deref(), Some("5:10:25|10:20:15"));
+        assert_eq!(phase.meta.visibility_level, 3);
+        assert!(!phase.meta.is_free);
+        assert_eq!(phase.meta.abandoned_deduction, 5);
+    }
+
+    #[test]
+    fn test_phase_structured_hints() {
+        let bp = transpile_str(
+            r#"
+blueprint "Test" {
+    phase "tcp" {
+        slug: listen-on-port
+
+        hints {
+            hint {
+                text: "Use net.Listen in Go"
+                unlock_criteria: "5:3:A"
+                points_deduction: 5
+            }
+            hint {
+                text: "Check for errors"
+                unlock_criteria: "10:5:A"
+                points_deduction: 10
+            }
+        }
+
+        step "port open" {
+            slug: listen-on-port
+            probe tcp 4221
+            expect { connected: true }
+        }
+    }
+}
+"#,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let hints = &bp.phases[0].meta.hints;
+        assert_eq!(hints.len(), 2);
+        assert_eq!(hints[0].text, "Use net.Listen in Go");
+        assert_eq!(hints[0].unlock_criteria.as_deref(), Some("5:3:A"));
+        assert_eq!(hints[0].points_deduction, 5);
+        assert_eq!(hints[0].sort_order, 1);
+        assert_eq!(hints[1].text, "Check for errors");
+        assert_eq!(hints[1].sort_order, 2);
+    }
+
+    #[test]
+    fn test_phase_multiline_description() {
+        let bp = transpile_str(
+            r#"
+blueprint "Test" {
+    phase "tcp" {
+        slug: listen-on-port
+        description: |
+            Create a TCP server that listens on port 4221.
+            Your server should accept incoming connections.
+
+        step "port open" {
+            slug: listen-on-port
+            probe tcp 4221
+            expect { connected: true }
+        }
+    }
+}
+"#,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let desc = bp.phases[0].meta.description.as_deref();
+        assert!(desc.is_some());
+        assert!(desc.unwrap_or("").contains("TCP server"));
+        assert!(desc.unwrap_or("").contains("incoming connections"));
     }
 
     #[test]

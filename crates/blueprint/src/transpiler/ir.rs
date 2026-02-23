@@ -60,8 +60,22 @@ impl Default for Config {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Phase {
     pub name: String,
+    pub meta: PhaseMeta,
     pub depends_on: Vec<String>,
     pub steps: Vec<Step>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct PhaseMeta {
+    pub slug: Option<String>,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub points: u32,
+    pub scores: Option<String>,
+    pub is_free: bool,
+    pub visibility_level: u8,
+    pub abandoned_deduction: u32,
+    pub hints: Vec<Hint>,
 }
 
 // --- step types ---
@@ -85,12 +99,6 @@ pub struct Step {
 pub struct StepMeta {
     pub slug: Option<String>,
     pub description: Option<String>,
-    pub points: u32,
-    pub scores: Option<String>,
-    pub is_free: bool,
-    pub visibility_level: u8,
-    pub abandoned_deduction: u32,
-    pub hints: Vec<Hint>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -98,6 +106,7 @@ pub struct Hint {
     pub text: String,
     pub unlock_criteria: Option<String>,
     pub points_deduction: u32,
+    pub sort_order: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
