@@ -720,6 +720,7 @@ fn apply_project_meta_property(
         "related_course_slug" => {
             meta.related_course_slug = prop.value.as_str().map(|s| s.to_string())
         }
+        "difficulty" => meta.difficulty = prop.value.as_str().map(|s| s.to_string()),
         _ => {}
     }
     Ok(())

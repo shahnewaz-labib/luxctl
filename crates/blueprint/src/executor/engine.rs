@@ -56,11 +56,9 @@ impl Engine {
             }
 
             let phase_result = self.execute_phase(phase).await?;
-            if phase_result.status != Status::Passed {
+            if phase_result.status == Status::Failed {
                 failed_phases.insert(phase_name.clone());
-                if overall_status == Status::Passed {
-                    overall_status = phase_result.status.clone();
-                }
+                overall_status = Status::Failed;
             }
             phase_results.push(phase_result);
         }

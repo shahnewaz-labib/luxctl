@@ -27,6 +27,7 @@ pub struct ProjectMeta {
     pub featured_order: Option<u32>,
     pub published_at: Option<String>,
     pub related_course_slug: Option<String>,
+    pub difficulty: Option<String>,
     pub features: Vec<Feature>,
 }
 

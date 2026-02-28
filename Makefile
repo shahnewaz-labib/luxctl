@@ -1,4 +1,4 @@
-.PHONY: build run test e2e fmt lint clean dev check all local\:me local\:get release\:build
+.PHONY: build run test e2e fmt lint clean dev check all local\:me local\:get release\:build dev-build
 
 LOCAL_API_URL := http://0.0.0.0:8000/api/v1
 DEV_TOKEN_FILE := dev_token
@@ -76,6 +76,11 @@ check: fmt-check lint test
 
 # Build and run all quality checks
 all: fmt lint test build
+
+# Build a linux debug binary for local dev containers
+dev-build:
+	docker run --rm -v .:/src -w /src rust:1.83-alpine sh -c "apk add musl-dev && cargo build"
+	cp target/debug/luxctl luxctl_dev
 
 # Build a release: make release:build VERSION=0.2.0
 release\:build:
