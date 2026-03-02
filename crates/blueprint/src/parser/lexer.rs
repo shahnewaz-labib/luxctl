@@ -52,6 +52,12 @@ pub fn tokenize(input: &str) -> Result<Vec<LocatedToken>, ParseError> {
     let mut tokens = Vec::new();
     let lines: Vec<&str> = input.lines().collect();
 
+    // when we see "key: |", we enter raw multiline mode.
+    // all subsequent lines indented deeper than the key line
+    // are emitted as Raw tokens instead of being tokenized.
+    let mut in_multiline = false;
+    let mut multiline_base_indent: usize = 0;
+
     for (line_idx, line) in lines.iter().enumerate() {
         let line_num = line_idx + 1;
         let trimmed = line.trim();
@@ -66,7 +72,38 @@ pub fn tokenize(input: &str) -> Result<Vec<LocatedToken>, ParseError> {
             continue;
         }
 
+        // inside a multiline block: emit as raw text if still indented
+        if in_multiline {
+            let indent = line.len() - line.trim_start().len();
+            if indent > multiline_base_indent {
+                tokens.push(LocatedToken {
+                    value: Token::Raw(trimmed.to_string()),
+                    line: line_num,
+                    col: indent + 1,
+                });
+                tokens.push(LocatedToken {
+                    value: Token::Newline,
+                    line: line_num,
+                    col: line.len() + 1,
+                });
+                continue;
+            }
+            // back to normal indentation — exit multiline mode
+            in_multiline = false;
+        }
+
         let line_tokens = tokenize_line(trimmed, line_num)?;
+
+        // detect "key: |" pattern — last meaningful token is Pipe
+        let has_pipe = line_tokens
+            .iter()
+            .rev()
+            .any(|t| matches!(t.value, Token::Pipe));
+        if has_pipe {
+            in_multiline = true;
+            multiline_base_indent = line.len() - line.trim_start().len();
+        }
+
         tokens.extend(line_tokens);
 
         tokens.push(LocatedToken {
