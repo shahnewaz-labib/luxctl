@@ -10,5 +10,5 @@ pub mod tasks;
 pub mod ui;
 pub mod validators;
 
-pub const VERSION: &str = "0.8.3";
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const LIGHTHOUSE_URL: &str = "https://projectlighthouse.io";
