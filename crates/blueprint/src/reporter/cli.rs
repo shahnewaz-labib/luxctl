@@ -21,7 +21,9 @@ impl CliReporter {
     ) {
         println!();
 
-        for phase in &result.phases {
+        for (i, phase) in result.phases.iter().enumerate() {
+            let num = format!("{:>2}", i + 1).dimmed();
+
             if phase.status == Status::Skipped {
                 let previously_passed = phase
                     .slug
@@ -29,15 +31,16 @@ impl CliReporter {
                     .is_some_and(|s| completed_slugs.contains(s));
 
                 if previously_passed {
-                    println!("  {} {}", "✓".dimmed(), phase.name.dimmed());
+                    println!("  {} {} {}", num, "✓".dimmed(), phase.name.dimmed());
                 } else {
-                    println!("  {} {}", "⊘".dimmed(), phase.name.dimmed());
+                    println!("  {} {} {}", num, "⊘".dimmed(), phase.name.dimmed());
                 }
                 continue;
             }
 
-            for step in &phase.steps {
-                Self::render_step(step, detailed);
+            for (j, step) in phase.steps.iter().enumerate() {
+                let prefix = if j == 0 { num.clone() } else { "  ".dimmed() };
+                Self::render_step(step, detailed, &prefix);
             }
 
             if detailed {
@@ -85,27 +88,28 @@ impl CliReporter {
 
     /// print a single step result (for --task targeting)
     pub fn print_step_result(step: &StepResult, detailed: bool) {
-        Self::render_step(step, detailed);
+        Self::render_step(step, detailed, &"  ".dimmed());
     }
 
-    fn render_step(step: &StepResult, detailed: bool) {
+    fn render_step(step: &StepResult, detailed: bool, prefix: &colored::ColoredString) {
         match &step.status {
             Status::Passed => {
                 if detailed {
                     let suffix = step_suffix(step);
-                    let gap = right_align_gap(4 + step.name.len(), suffix.len());
-                    println!("  {} {}{}{}", "✓".green(), step.name, gap, suffix.dimmed());
+                    let gap = right_align_gap(7 + step.name.len(), suffix.len());
+                    println!("  {} {} {}{}{}", prefix, "✓".green(), step.name, gap, suffix.dimmed());
                     print_expectations(&step.expectations);
                 } else {
-                    println!("  {} {}", "✓".green(), step.name);
+                    println!("  {} {} {}", prefix, "✓".green(), step.name);
                 }
             }
             Status::Failed => {
                 if detailed {
                     let suffix = step_suffix(step);
-                    let gap = right_align_gap(4 + step.name.len(), suffix.len());
+                    let gap = right_align_gap(7 + step.name.len(), suffix.len());
                     println!(
-                        "  {} {}{}{}",
+                        "  {} {} {}{}{}",
+                        prefix,
                         "✗".red(),
                         step.name.red(),
                         gap,
@@ -113,21 +117,21 @@ impl CliReporter {
                     );
                     print_expectations(&step.expectations);
                 } else {
-                    println!("  {} {}", "✗".red(), step.name.red());
+                    println!("  {} {} {}", prefix, "✗".red(), step.name.red());
                     for exp in &step.expectations {
                         if exp.status == Status::Failed {
                             if let Some(msg) = &exp.message {
-                                println!("    {}", msg.dimmed());
+                                println!("       {}", msg.dimmed());
                             }
                         }
                     }
                 }
             }
             Status::Skipped => {
-                println!("  {} {}", "⊘".dimmed(), step.name.dimmed());
+                println!("  {} {} {}", prefix, "⊘".dimmed(), step.name.dimmed());
             }
             Status::Error(msg) => {
-                println!("  {} {} — {}", "!".yellow(), step.name.yellow(), msg);
+                println!("  {} {} {} — {}", prefix, "!".yellow(), step.name.yellow(), msg);
             }
         }
 
