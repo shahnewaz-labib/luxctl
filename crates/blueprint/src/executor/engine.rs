@@ -49,6 +49,7 @@ impl Engine {
                 failed_phases.insert(phase_name.clone());
                 phase_results.push(PhaseResult {
                     name: phase_name.clone(),
+                    slug: phase.meta.slug.clone(),
                     status: Status::Skipped,
                     steps: Vec::new(),
                     duration_ms: 0,
@@ -88,6 +89,7 @@ impl Engine {
                     debug!("  skipping phase (slug mismatch: want={}, got={})", slug, phase_slug);
                     return Ok(PhaseResult {
                         name: phase.name.clone(),
+                        slug: phase.meta.slug.clone(),
                         status: Status::Skipped,
                         steps: Vec::new(),
                         duration_ms: 0,
@@ -147,6 +149,7 @@ impl Engine {
 
         Ok(PhaseResult {
             name: phase.name.clone(),
+            slug: phase.meta.slug.clone(),
             status: phase_status,
             steps: step_results,
             duration_ms: start.elapsed().as_millis() as u64,

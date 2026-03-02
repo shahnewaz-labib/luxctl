@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use blueprint::reporter::CliReporter;
@@ -86,6 +86,14 @@ pub async fn run(task_id: &str, project_slug: Option<&str>, detailed: bool) -> R
         .get_active()
         .map(|l| PathBuf::from(&l.workspace));
 
+    // collect slugs of previously completed tasks so the reporter
+    // can distinguish "already passed" from "never attempted"
+    let completed_slugs: HashSet<String> = tasks
+        .iter()
+        .filter(|t| t.status.is_completed())
+        .map(|t| t.slug.clone())
+        .collect();
+
     run_task_validators(
         &client,
         &project_data.slug,
@@ -93,6 +101,7 @@ pub async fn run(task_id: &str, project_slug: Option<&str>, detailed: bool) -> R
         Some((&mut state, &token)),
         workspace,
         detailed,
+        &completed_slugs,
     )
     .await
 }
@@ -106,10 +115,11 @@ pub async fn run_task_validators(
     state_ctx: Option<(&mut ProjectState, &str)>,
     workspace: Option<PathBuf>,
     detailed: bool,
+    completed_slugs: &HashSet<String>,
 ) -> Result<()> {
     match blueprint_runner::detect_system(task) {
         TaskSystem::Blueprint(source) => {
-            run_blueprint_task(client, project_slug, task, source, state_ctx, workspace, detailed)
+            run_blueprint_task(client, project_slug, task, source, state_ctx, workspace, detailed, completed_slugs)
                 .await
         }
         TaskSystem::None => {
@@ -131,6 +141,7 @@ async fn run_blueprint_task(
     state_ctx: Option<(&mut ProjectState, &str)>,
     workspace: Option<PathBuf>,
     detailed: bool,
+    completed_slugs: &HashSet<String>,
 ) -> Result<()> {
     let ui = RunUI::new(&task.slug, 0);
 
@@ -170,7 +181,7 @@ async fn run_blueprint_task(
         }
     };
 
-    CliReporter::print_result(&bp_result, detailed);
+    CliReporter::print_result_with_context(&bp_result, detailed, completed_slugs);
 
     // submit attempt
     let attempt_request = blueprint_runner::to_attempt_request(&bp_result, project_slug, task.id);

@@ -97,6 +97,7 @@ mod tests {
             status: Status::Passed,
             phases: vec![PhaseResult {
                 name: "test".to_string(),
+                slug: None,
                 status: Status::Passed,
                 steps: vec![StepResult {
                     name: "check".to_string(),
@@ -136,6 +137,7 @@ mod tests {
             status: Status::Failed,
             phases: vec![PhaseResult {
                 name: "test".to_string(),
+                slug: None,
                 status: Status::Failed,
                 steps: vec![StepResult {
                     name: "confirm id".to_string(),
@@ -177,6 +179,7 @@ mod tests {
             status: Status::Passed,
             phases: vec![PhaseResult {
                 name: "test".to_string(),
+                slug: None,
                 status: Status::Passed,
                 steps: vec![
                     StepResult {

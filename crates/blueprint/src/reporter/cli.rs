@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::transpiler::ir::*;
 use colored::Colorize;
 
@@ -7,11 +9,30 @@ const DETAIL_LINE_WIDTH: usize = 60;
 
 impl CliReporter {
     pub fn print_result(result: &BlueprintResult, detailed: bool) {
+        Self::print_result_with_context(result, detailed, &HashSet::new());
+    }
+
+    /// render with knowledge of which task slugs were previously completed,
+    /// so skipped-but-passed phases show ✓ instead of ⊘
+    pub fn print_result_with_context(
+        result: &BlueprintResult,
+        detailed: bool,
+        completed_slugs: &HashSet<String>,
+    ) {
         println!();
 
         for phase in &result.phases {
             if phase.status == Status::Skipped {
-                println!("  {} {}", "⊘".dimmed(), phase.name.dimmed());
+                let previously_passed = phase
+                    .slug
+                    .as_ref()
+                    .is_some_and(|s| completed_slugs.contains(s));
+
+                if previously_passed {
+                    println!("  {} {}", "✓".dimmed(), phase.name.dimmed());
+                } else {
+                    println!("  {} {}", "⊘".dimmed(), phase.name.dimmed());
+                }
                 continue;
             }
 
@@ -235,6 +256,7 @@ mod tests {
             status: Status::Passed,
             phases: vec![PhaseResult {
                 name: "test".to_string(),
+                slug: None,
                 status: Status::Passed,
                 steps: vec![StepResult {
                     name: "step 1".to_string(),
@@ -274,6 +296,7 @@ mod tests {
             status: Status::Failed,
             phases: vec![PhaseResult {
                 name: "test".to_string(),
+                slug: None,
                 status: Status::Failed,
                 steps: vec![StepResult {
                     name: "step 1".to_string(),

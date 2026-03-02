@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use color_eyre::eyre::Result;
@@ -125,6 +126,12 @@ pub async fn validate_all(include_passed: bool, detailed: bool) -> Result<()> {
 
     let total_tasks = filtered.to_run.len();
 
+    let completed_slugs: HashSet<String> = tasks
+        .iter()
+        .filter(|t| t.status.is_completed())
+        .map(|t| t.slug.clone())
+        .collect();
+
     // run each task
     for (i, task) in filtered.to_run.iter().enumerate() {
         // blueprint tasks have 0 legacy validators; count doesn't affect separator display
@@ -145,6 +152,7 @@ pub async fn validate_all(include_passed: bool, detailed: bool) -> Result<()> {
             Some((&mut state, &token)),
             workspace,
             detailed,
+            &completed_slugs,
         )
         .await?;
     }

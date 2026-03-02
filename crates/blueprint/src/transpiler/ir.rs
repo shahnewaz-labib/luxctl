@@ -370,6 +370,7 @@ pub struct BlueprintResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PhaseResult {
     pub name: String,
+    pub slug: Option<String>,
     pub status: Status,
     pub steps: Vec<StepResult>,
     pub duration_ms: u64,
