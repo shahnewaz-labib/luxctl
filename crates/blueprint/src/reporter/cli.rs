@@ -51,29 +51,35 @@ impl CliReporter {
 
         println!();
 
+        let duration = format!("{}ms", result.duration_ms);
+
         match &result.status {
             Status::Passed => {
-                println!("  {}", "All checks passed.".green().bold());
+                println!(
+                    "  {} {}",
+                    "all checks passed.".green().bold(),
+                    format!("({})", duration).dimmed()
+                );
             }
             Status::Failed => {
                 let total = count_steps(result);
                 let passed = count_passed_steps(result);
                 println!(
-                    "  {} ({}/{} steps passed)",
-                    "Some checks failed.".red().bold(),
+                    "  {} ({}/{} steps passed, {})",
+                    "some checks failed.".red().bold(),
                     passed,
-                    total
+                    total,
+                    duration
                 );
             }
             Status::Skipped => {
-                println!("  {}", "All steps skipped.".dimmed());
+                println!("  {} {}", "all steps skipped.".dimmed(), format!("({})", duration).dimmed());
             }
             Status::Error(msg) => {
-                println!("  {} {}", "Error:".red().bold(), msg);
+                println!("  {} {} {}", "error:".red().bold(), msg, format!("({})", duration).dimmed());
             }
         }
 
-        println!("  Duration: {}ms", result.duration_ms);
         println!();
     }
 
