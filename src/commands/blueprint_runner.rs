@@ -33,9 +33,12 @@ pub async fn run_validate(
     task_slug: &str,
     workspace: Option<PathBuf>,
 ) -> Result<BlueprintResult> {
+    log::debug!("parsing blueprint ({} bytes)...", bp_source.len());
     let ast = parse(bp_source)
         .map_err(|e| color_eyre::eyre::eyre!("parse error at line {}: {}", e.line, e.message))?;
+    log::debug!("parsed ok");
 
+    log::debug!("transpiling...");
     let bp = transpile(&ast).map_err(|e| {
         let msg = match e.context {
             Some(ctx) => format!("{}: {}", ctx, e.message),
@@ -43,17 +46,21 @@ pub async fn run_validate(
         };
         color_eyre::eyre::eyre!("transpile error: {}", msg)
     })?;
+    log::debug!("transpiled ok: {} phases", bp.phases.len());
 
     let mut ctx = Context::new(bp.config.clone(), ExecutionMode::Validate);
-    if let Some(ws) = workspace {
+    if let Some(ws) = workspace.clone() {
         ctx = ctx.with_workspace(ws);
     }
+    log::debug!("workspace: {:?}, task: {}", workspace, task_slug);
     let mut engine = Engine::new(ctx).with_task(task_slug);
 
+    log::debug!("executing engine...");
     let result = engine
         .execute(&bp)
         .await
         .wrap_err("blueprint execution failed")?;
+    log::debug!("engine done");
 
     Ok(result)
 }
