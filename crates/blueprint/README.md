@@ -276,26 +276,6 @@ ExpectResult
   message: Option<String>                  # human-readable failure
 ```
 
-## Tests
-
-```bash
-cargo test -p blueprint        # 94 tests across all modules
-```
-
-| Module | Tests |
-|--------|-------|
-| parser::lexer | 10 |
-| parser::grammar | 13 |
-| transpiler::ir | 6 |
-| transpiler::resolve | 13 |
-| transpiler::validate | 5 |
-| executor::context | 4 |
-| executor::expect | 12 |
-| executor::probes | 8 |
-| executor::engine | 10 |
-| reporter::cli | 3 |
-| reporter::api | 3 |
-
 ## Design principles
 
 1. **Blueprint inspects, it does not act.** The keyword is `probe`, not `do`. Probes are read-only.
