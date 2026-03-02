@@ -1,11 +1,20 @@
 use crate::executor::context::Context;
 use crate::executor::error::ExecutionError;
 use crate::transpiler::ir::{ExecProbe, ProbeResult, Value};
+use log::debug;
 use std::collections::HashMap;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio::process::Command;
 
 pub async fn execute(probe: &ExecProbe, ctx: &Context) -> Result<ProbeResult, ExecutionError> {
+    execute_with_timeout(probe, ctx, None).await
+}
+
+pub async fn execute_with_timeout(
+    probe: &ExecProbe,
+    ctx: &Context,
+    timeout: Option<Duration>,
+) -> Result<ProbeResult, ExecutionError> {
     let command = ctx.interpolate(&probe.command);
     let args: Vec<String> = probe.args.iter().map(|a| ctx.interpolate(a)).collect();
 
@@ -16,9 +25,27 @@ pub async fn execute(probe: &ExecProbe, ctx: &Context) -> Result<ProbeResult, Ex
     if let Some(ref ws) = ctx.workspace {
         cmd.current_dir(ws);
     }
-    let output = cmd
-        .output()
+
+    // use step timeout, fall back to config timeout, or default 30s
+    let deadline = timeout.unwrap_or(ctx.config.timeout);
+
+    debug!(
+        "exec: {} {} (cwd: {:?}, timeout: {}s)",
+        command,
+        args.join(" "),
+        ctx.workspace,
+        deadline.as_secs()
+    );
+
+    let output = tokio::time::timeout(deadline, cmd.output())
         .await
+        .map_err(|_| {
+            ExecutionError::new(format!(
+                "'{}' timed out after {}s",
+                command,
+                deadline.as_secs()
+            ))
+        })?
         .map_err(|e| ExecutionError::new(format!("failed to execute '{}': {}", command, e)))?;
 
     let duration = start.elapsed();

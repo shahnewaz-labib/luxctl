@@ -4,6 +4,7 @@ use crate::executor::expect::{evaluate_expectations, evaluate_input, process_cap
 use crate::executor::probes::execute_probe;
 use crate::transpiler::ir::*;
 use crate::transpiler::validate::topological_sort;
+use log::debug;
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
@@ -78,10 +79,13 @@ impl Engine {
         let mut step_results = Vec::new();
         let mut phase_status = Status::Passed;
 
+        debug!("phase: \"{}\" (slug: {:?})", phase.name, phase.meta.slug);
+
         // phase-level slug filtering: skip entire phase if slug doesn't match
         if let Some(ref slug) = self.task_slug {
             if let Some(ref phase_slug) = phase.meta.slug {
                 if phase_slug != slug {
+                    debug!("  skipping phase (slug mismatch: want={}, got={})", slug, phase_slug);
                     return Ok(PhaseResult {
                         name: phase.name.clone(),
                         status: Status::Skipped,
@@ -186,8 +190,16 @@ impl Engine {
         let start = Instant::now();
         let timeout = step.timeout.or(Some(self.ctx.config.timeout));
 
+        debug!(
+            "  step: \"{}\" (timeout: {:?}, attempt: {})",
+            step.name, timeout, attempt
+        );
+        debug!("    probe: {:?}", step.probe);
+
+        // timeout is passed into exec probes so the child process is killed on expiry.
+        // for non-exec probes, the outer tokio::time::timeout still applies.
         let probe_result = if let Some(t) = timeout {
-            match tokio::time::timeout(t, execute_probe(&step.probe, &self.ctx)).await {
+            match tokio::time::timeout(t, execute_probe(&step.probe, &self.ctx, timeout)).await {
                 Ok(result) => result?,
                 Err(_) => {
                     return Ok(StepResult {
@@ -202,8 +214,15 @@ impl Engine {
                 }
             }
         } else {
-            execute_probe(&step.probe, &self.ctx).await?
+            execute_probe(&step.probe, &self.ctx, timeout).await?
         };
+
+        debug!(
+            "    probe result: exit={:?}, duration={}ms, stdout_len={}",
+            probe_result.fields.get("exit"),
+            probe_result.duration_ms,
+            probe_result.raw_stdout.as_ref().map_or(0, |s| s.len()),
+        );
 
         let has_input = !step.inputs.is_empty();
         let (expect_results, input_matched, captured) = if has_input
