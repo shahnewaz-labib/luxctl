@@ -203,12 +203,24 @@ fn tokenize_line(line: &str, line_num: usize) -> Result<Vec<LocatedToken>, Parse
                 });
             }
             '\'' => {
-                let s = read_single_quoted_string(&chars, &mut i, line_num)?;
-                tokens.push(LocatedToken {
-                    value: Token::SingleQuotedString(s),
-                    line: line_num,
-                    col,
-                });
+                // treat as string delimiter only if not mid-word (e.g. don't match "doesn't")
+                let prev_is_alpha = i > 0 && chars[i - 1].is_alphanumeric();
+                if prev_is_alpha {
+                    let word = read_word(&chars, &mut i);
+                    let combined = format!("'{}", word);
+                    tokens.push(LocatedToken {
+                        value: Token::Ident(combined),
+                        line: line_num,
+                        col,
+                    });
+                } else {
+                    let s = read_single_quoted_string(&chars, &mut i, line_num)?;
+                    tokens.push(LocatedToken {
+                        value: Token::SingleQuotedString(s),
+                        line: line_num,
+                        col,
+                    });
+                }
             }
             '/' => {
                 // only treat / as regex when in value position (after colon)
