@@ -254,6 +254,8 @@ jobs:
           fi
 
       - name: Build binary
+        env:
+          LUXCTL_CLIENT_SECRET: ${{ secrets.LUXCTL_CLIENT_SECRET }}
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Prepare binary (Unix)

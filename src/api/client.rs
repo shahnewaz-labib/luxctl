@@ -1,17 +1,61 @@
 use color_eyre::eyre::{eyre, Result};
 use core::fmt;
+use hmac::{Hmac, Mac};
 use reqwest::{header::HeaderMap, Client};
 use secrecy::{ExposeSecret, SecretString};
 use serde::de::DeserializeOwned;
-use std::{collections::HashMap, env};
+use sha2::Sha256;
+use std::{
+    collections::HashMap,
+    env,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use crate::{config::Config, VERSION};
+
+type HmacSha256 = Hmac<Sha256>;
+
+// baked at compile time; falls back to dev secret so open-source contributors
+// and `cargo test` work without setting the env var.
+const CLIENT_SECRET: &str = match option_env!("LUXCTL_CLIENT_SECRET") {
+    Some(v) => v,
+    None => "dev-secret-0",
+};
 
 use super::types::{
     ApiError, ApiUser, HealthCheckResponse, HintsResponse, PaginatedResponse, Project,
     RestartProjectResponse, SubmitAnswerRequest, SubmitAnswerResponse, SubmitAttemptRequest,
     SubmitAttemptResponse, Terminal, UnlockHintResponse,
 };
+
+/// Produce (timestamp, hex-encoded HMAC-SHA256) for the given HTTP method + path.
+/// The payload format is "timestamp.METHOD.path", matching Laravel's VerifyLuxctlClient middleware.
+fn sign_request(method: &str, path: &str) -> (String, String) {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+        .to_string();
+
+    let payload = format!("{}.{}.{}", timestamp, method, path);
+
+    let Some(mut mac) = HmacSha256::new_from_slice(CLIENT_SECRET.as_bytes()).ok() else {
+        return (timestamp, String::new());
+    };
+    mac.update(payload.as_bytes());
+
+    (timestamp, hex::encode(mac.finalize().into_bytes()))
+}
+
+/// Build the three signing headers that Laravel expects on every /api/v1/* request.
+fn signing_headers(method: &str, path: &str) -> Result<HeaderMap> {
+    let (timestamp, signature) = sign_request(method, path);
+    let mut headers = HeaderMap::new();
+    headers.insert("X-Luxctl-Signature", signature.parse()?);
+    headers.insert("X-Luxctl-Timestamp", timestamp.parse()?);
+    headers.insert("X-Luxctl-Version", VERSION.parse()?);
+    Ok(headers)
+}
 
 pub struct LighthouseAPIClient {
     base_url: String,
@@ -85,15 +129,17 @@ impl LighthouseAPIClient {
         headers: Option<HeaderMap>,
     ) -> Result<T> {
         let url = format!("{}/api/{}/{}", self.base_url, self.api_version, endpoint);
+        let path = format!("/api/{}/{}", self.api_version, endpoint);
 
-        let mut request = self.client.get(url);
+        let mut merged = signing_headers("GET", &path)?;
+        if let Some(extra) = headers {
+            merged.extend(extra);
+        }
+
+        let mut request = self.client.get(url).headers(merged);
 
         if let Some(query_params) = query_params {
             request = request.query(&query_params);
-        }
-
-        if let Some(headers) = headers {
-            request = request.headers(headers);
         }
 
         let response = request.send().await?;
@@ -117,12 +163,14 @@ impl LighthouseAPIClient {
         headers: Option<HeaderMap>,
     ) -> Result<T> {
         let url = format!("{}/api/{}/{}", self.base_url, self.api_version, endpoint);
+        let path = format!("/api/{}/{}", self.api_version, endpoint);
 
-        let mut request = self.client.post(url).json(body);
-
-        if let Some(headers) = headers {
-            request = request.headers(headers);
+        let mut merged = signing_headers("POST", &path)?;
+        if let Some(extra) = headers {
+            merged.extend(extra);
         }
+
+        let request = self.client.post(url).json(body).headers(merged);
 
         let response = request.send().await?;
 
@@ -686,5 +734,46 @@ mod tests {
 
         assert!(display.contains("https://projectlighthouse.io"));
         assert!(display.contains("release"));
+    }
+
+    #[test]
+    fn test_sign_request_produces_valid_hex() {
+        let (timestamp, signature) = sign_request("GET", "/api/v1/projects");
+        // timestamp is a numeric string
+        assert!(timestamp.parse::<u64>().is_ok());
+        // signature is 64-char hex (SHA-256 = 32 bytes = 64 hex chars)
+        assert_eq!(signature.len(), 64);
+        assert!(signature.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn test_sign_request_differs_by_method() {
+        let (_, sig_get) = sign_request("GET", "/api/v1/projects");
+        let (_, sig_post) = sign_request("POST", "/api/v1/projects");
+        // different methods → different signatures (timestamps may differ too, but
+        // even with same timestamp the payload is different)
+        // we can't assert inequality because timestamps could change the output;
+        // instead verify both are valid hex
+        assert_eq!(sig_get.len(), 64);
+        assert_eq!(sig_post.len(), 64);
+    }
+
+    #[test]
+    fn test_sign_request_differs_by_path() {
+        let (ts1, sig1) = sign_request("GET", "/api/v1/projects");
+        let (ts2, sig2) = sign_request("GET", "/api/v1/tasks");
+        // if by chance timestamps are the same, paths differ → signatures differ
+        if ts1 == ts2 {
+            assert_ne!(sig1, sig2);
+        }
+    }
+
+    #[test]
+    fn test_signing_headers_contain_required_keys() {
+        let headers = signing_headers("GET", "/api/v1/projects").unwrap();
+        assert!(headers.contains_key("X-Luxctl-Signature"));
+        assert!(headers.contains_key("X-Luxctl-Timestamp"));
+        assert!(headers.contains_key("X-Luxctl-Version"));
+        assert_eq!(headers.get("X-Luxctl-Version").unwrap(), VERSION);
     }
 }

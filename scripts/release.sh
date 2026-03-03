@@ -30,6 +30,6 @@ cargo fmt -- --check
 cargo clippy --quiet
 cargo test --quiet
 
-LUX_ENV=RELEASE cargo build --release
+LUXCTL_CLIENT_SECRET="${LUXCTL_CLIENT_SECRET:?Set LUXCTL_CLIENT_SECRET for release builds}" LUX_ENV=RELEASE cargo build --release
 
 echo "release v$VERSION built: target/release/lux"
