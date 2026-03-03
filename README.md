@@ -25,7 +25,7 @@ curl -fsSL https://raw.githubusercontent.com/thearyanahmed/luxctl/master/install
 cargo install luxctl
 
 # specific version
-cargo install luxctl --version 0.8.3
+cargo install luxctl --version 0.8.8
 ```
 
 ## Quick Start
@@ -221,7 +221,7 @@ Releases are automated via GitHub Actions. To create a new release:
 4. Wait for Auto Tag workflow to create the version tag
 5. Trigger the Release workflow:
    ```bash
-   gh workflow run Release --field tag=v0.8.3
+   gh workflow run Release --field tag=v0.8.8
    ```
 
 The Release workflow will:
