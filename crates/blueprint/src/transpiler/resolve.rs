@@ -34,8 +34,8 @@ pub fn transpile(ast: &crate::parser::ast::Ast) -> Result<Blueprint, TranspileEr
 fn resolve_config(block: &crate::parser::ast::Block) -> Result<Config, TranspileError> {
     let mut config = Config::default();
     for item in &block.items {
-        if let crate::parser::ast::AstItem::Property(prop) = item {
-            match prop.key.as_str() {
+        match item {
+            crate::parser::ast::AstItem::Property(prop) => match prop.key.as_str() {
                 "host" => {
                     config.host = prop
                         .value
@@ -57,12 +57,30 @@ fn resolve_config(block: &crate::parser::ast::Block) -> Result<Config, Transpile
                     config.timeout = parse_duration(s)
                         .ok_or_else(|| TranspileError::new(format!("invalid timeout: {s}")))?;
                 }
+                "bin" => {
+                    config.bin = Some(
+                        prop.value
+                            .as_str()
+                            .ok_or_else(|| TranspileError::new("config.bin must be a string"))?
+                            .to_string(),
+                    );
+                }
                 _ => {
                     if let Some(v) = prop.value.as_str() {
                         config.env.insert(prop.key.clone(), v.to_string());
                     }
                 }
+            },
+            crate::parser::ast::AstItem::Block(b) if b.block_type == "bin_path" => {
+                for sub in &b.items {
+                    if let crate::parser::ast::AstItem::Property(p) = sub {
+                        if let Some(v) = p.value.as_str() {
+                            config.bin_path.insert(p.key.clone(), v.to_string());
+                        }
+                    }
+                }
             }
+            _ => {}
         }
     }
     Ok(config)
@@ -1243,5 +1261,69 @@ blueprint "T" {
             result,
             vec!["inspect", "nginx-1", "--format", "{{.State.Status}}"]
         );
+    }
+
+    #[test]
+    fn test_config_bin_and_bin_path() {
+        let bp = transpile_str(
+            r#"
+blueprint "T" {
+    config {
+        timeout: 10s
+        bin: seachart
+        bin_path {
+            go: "./seachart"
+            rust: "./target/debug/seachart"
+            c: "./seachart"
+        }
+    }
+    phase "t" {
+        step "s" { probe tcp 4221 expect { connected: true } }
+    }
+}
+"#,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(bp.config.bin.as_deref(), Some("seachart"));
+        assert_eq!(bp.config.bin_path.get("go").map(|s| s.as_str()), Some("./seachart"));
+        assert_eq!(bp.config.bin_path.get("rust").map(|s| s.as_str()), Some("./target/debug/seachart"));
+        assert_eq!(bp.config.bin_path.get("c").map(|s| s.as_str()), Some("./seachart"));
+    }
+
+    #[test]
+    fn test_config_bin_without_bin_path() {
+        let bp = transpile_str(
+            r#"
+blueprint "T" {
+    config {
+        timeout: 5s
+        bin: myapp
+    }
+    phase "t" {
+        step "s" { probe tcp 80 expect { connected: true } }
+    }
+}
+"#,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(bp.config.bin.as_deref(), Some("myapp"));
+        assert!(bp.config.bin_path.is_empty());
+    }
+
+    #[test]
+    fn test_config_defaults_without_bin() {
+        let bp = transpile_str(
+            r#"
+blueprint "T" {
+    config { timeout: 10s }
+    phase "t" {
+        step "s" { probe tcp 80 expect { connected: true } }
+    }
+}
+"#,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert!(bp.config.bin.is_none());
+        assert!(bp.config.bin_path.is_empty());
     }
 }

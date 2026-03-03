@@ -29,13 +29,25 @@ pub fn detect_system(task: &Task) -> TaskSystem<'_> {
     TaskSystem::None
 }
 
-/// build the full build command string from a runtime name (e.g. "go" → "go build .")
-fn build_command_for_runtime(runtime_str: &str) -> Option<String> {
+/// build the full build command string from a runtime name.
+/// when bin_path is set, Go gets `-o <bin_path>` so the output binary lands at the expected location.
+fn build_command_for_runtime(runtime_str: &str, bin_path: Option<&str>) -> Option<String> {
     let rt: SupportedRuntime = runtime_str.parse().ok()?;
-    let parts: Vec<&str> = std::iter::once(rt.build_command())
-        .chain(rt.build_args())
-        .collect();
-    Some(parts.join(" "))
+    match rt {
+        SupportedRuntime::Go => {
+            if let Some(path) = bin_path {
+                Some(format!("go build -o {} .", path))
+            } else {
+                Some("go build .".to_string())
+            }
+        }
+        _ => {
+            let parts: Vec<&str> = std::iter::once(rt.build_command())
+                .chain(rt.build_args())
+                .collect();
+            Some(parts.join(" "))
+        }
+    }
 }
 
 /// run a blueprint in Validate mode (probe-only, no user inputs)
@@ -64,8 +76,21 @@ pub async fn run_validate(
     if let Some(ws) = workspace.clone() {
         ctx = ctx.with_workspace(ws);
     }
-    if let Some(build_cmd) = runtime.and_then(build_command_for_runtime) {
-        ctx.set_variable("$BUILD", Value::String(build_cmd));
+    if let Some(ref bin) = bp.config.bin {
+        ctx.set_variable("$BIN", Value::String(bin.clone()));
+    }
+    if let Some(rt_str) = runtime {
+        let resolved_path = bp.config.bin_path.get(rt_str)
+            .cloned()
+            .or_else(|| bp.config.bin.as_ref().map(|b| format!("./{}", b)));
+
+        if let Some(ref path) = resolved_path {
+            ctx.set_variable("$BIN_PATH", Value::String(path.clone()));
+        }
+
+        if let Some(cmd) = build_command_for_runtime(rt_str, resolved_path.as_deref()) {
+            ctx.set_variable("$BUILD", Value::String(cmd));
+        }
     }
     log::debug!("workspace: {:?}, task: {}", workspace, task_slug);
     let mut engine = Engine::new(ctx).with_task(task_slug);
@@ -103,8 +128,21 @@ pub async fn run_result(
     if let Some(ws) = workspace {
         ctx = ctx.with_workspace(ws);
     }
-    if let Some(build_cmd) = runtime.and_then(build_command_for_runtime) {
-        ctx.set_variable("$BUILD", Value::String(build_cmd));
+    if let Some(ref bin) = bp.config.bin {
+        ctx.set_variable("$BIN", Value::String(bin.clone()));
+    }
+    if let Some(rt_str) = runtime {
+        let resolved_path = bp.config.bin_path.get(rt_str)
+            .cloned()
+            .or_else(|| bp.config.bin.as_ref().map(|b| format!("./{}", b)));
+
+        if let Some(ref path) = resolved_path {
+            ctx.set_variable("$BIN_PATH", Value::String(path.clone()));
+        }
+
+        if let Some(cmd) = build_command_for_runtime(rt_str, resolved_path.as_deref()) {
+            ctx.set_variable("$BUILD", Value::String(cmd));
+        }
     }
     for (key, value) in user_inputs {
         ctx.set_user_input(key, value);
@@ -314,5 +352,35 @@ mod tests {
     async fn test_run_validate_parse_error() {
         let result = run_validate("not valid blueprint syntax {{{", "test-task", None, None).await;
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_build_command_go_with_bin_path() {
+        let cmd = build_command_for_runtime("go", Some("./seachart"));
+        assert_eq!(cmd.as_deref(), Some("go build -o ./seachart ."));
+    }
+
+    #[test]
+    fn test_build_command_go_without_bin_path() {
+        let cmd = build_command_for_runtime("go", None);
+        assert_eq!(cmd.as_deref(), Some("go build ."));
+    }
+
+    #[test]
+    fn test_build_command_rust_ignores_bin_path() {
+        let cmd = build_command_for_runtime("rust", Some("./target/debug/seachart"));
+        assert_eq!(cmd.as_deref(), Some("cargo build"));
+    }
+
+    #[test]
+    fn test_build_command_c_ignores_bin_path() {
+        let cmd = build_command_for_runtime("c", Some("./seachart"));
+        assert_eq!(cmd.as_deref(), Some("make"));
+    }
+
+    #[test]
+    fn test_build_command_unknown_runtime() {
+        let cmd = build_command_for_runtime("python", None);
+        assert!(cmd.is_none());
     }
 }

@@ -45,6 +45,8 @@ pub struct Config {
     #[serde(with = "duration_serde")]
     pub timeout: Duration,
     pub env: HashMap<String, String>,
+    pub bin: Option<String>,
+    pub bin_path: HashMap<String, String>,
 }
 
 impl Default for Config {
@@ -54,6 +56,8 @@ impl Default for Config {
             port: None,
             timeout: Duration::from_secs(30),
             env: HashMap::new(),
+            bin: None,
+            bin_path: HashMap::new(),
         }
     }
 }
