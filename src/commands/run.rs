@@ -82,9 +82,9 @@ pub async fn run(task_id: &str, project_slug: Option<&str>, detailed: bool) -> R
         }
     };
 
-    let workspace = state
-        .get_active()
-        .map(|l| PathBuf::from(&l.workspace));
+    let active = state.get_active();
+    let workspace = active.map(|l| PathBuf::from(&l.workspace));
+    let runtime = active.and_then(|l| l.runtime.clone());
 
     // collect slugs of previously completed tasks so the reporter
     // can distinguish "already passed" from "never attempted"
@@ -102,6 +102,7 @@ pub async fn run(task_id: &str, project_slug: Option<&str>, detailed: bool) -> R
         workspace,
         detailed,
         &completed_slugs,
+        runtime.as_deref(),
     )
     .await
 }
@@ -116,10 +117,11 @@ pub async fn run_task_validators(
     workspace: Option<PathBuf>,
     detailed: bool,
     completed_slugs: &HashSet<String>,
+    runtime: Option<&str>,
 ) -> Result<()> {
     match blueprint_runner::detect_system(task) {
         TaskSystem::Blueprint(source) => {
-            run_blueprint_task(client, project_slug, task, source, state_ctx, workspace, detailed, completed_slugs)
+            run_blueprint_task(client, project_slug, task, source, state_ctx, workspace, detailed, completed_slugs, runtime)
                 .await
         }
         TaskSystem::None => {
@@ -142,6 +144,7 @@ async fn run_blueprint_task(
     workspace: Option<PathBuf>,
     detailed: bool,
     completed_slugs: &HashSet<String>,
+    runtime: Option<&str>,
 ) -> Result<()> {
     let ui = RunUI::new(&task.slug, 0);
 
@@ -172,7 +175,7 @@ async fn run_blueprint_task(
 
     ui.step("Running blueprint...");
 
-    let bp_result = match blueprint_runner::run_validate(bp_source, &task.slug, workspace).await {
+    let bp_result = match blueprint_runner::run_validate(bp_source, &task.slug, workspace, runtime).await {
         Ok(r) => r,
         Err(err) => {
             oops!("blueprint failed: {}", err);
@@ -248,7 +251,7 @@ pub async fn run_terminal(terminal: &Terminal, workspace: &Path, detailed: bool)
 
     ui.step("Running blueprint...");
 
-    let bp_result = blueprint_runner::run_validate(bp_source, &terminal.slug, Some(workspace.to_path_buf())).await;
+    let bp_result = blueprint_runner::run_validate(bp_source, &terminal.slug, Some(workspace.to_path_buf()), None).await;
 
     // always clean up test files, even if blueprint failed
     cleanup_test_files(&written_paths);

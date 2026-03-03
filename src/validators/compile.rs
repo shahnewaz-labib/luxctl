@@ -139,13 +139,12 @@ mod tests {
 
     #[test]
     fn test_detect_build_command_with_runtime() {
-        // rust doesn't need files to exist for cargo check
         let workspace = PathBuf::from("/tmp");
         let result = detect_build_command(Some("rust"), &workspace);
         assert!(result.is_ok());
         let (cmd, args) = result.unwrap();
         assert_eq!(cmd, "cargo");
-        assert_eq!(args, vec!["check"]);
+        assert_eq!(args, vec!["build"]);
     }
 
     #[test]

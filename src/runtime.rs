@@ -1,6 +1,6 @@
 //! supported runtime definitions for luxctl
 //!
-//! currently supports Go and Rust runtimes only.
+//! currently supports Go, Rust, and C runtimes.
 
 use std::fmt;
 use std::path::Path;
@@ -11,6 +11,7 @@ use std::str::FromStr;
 pub enum SupportedRuntime {
     Go,
     Rust,
+    C,
 }
 
 impl SupportedRuntime {
@@ -19,6 +20,7 @@ impl SupportedRuntime {
         match self {
             SupportedRuntime::Go => "go",
             SupportedRuntime::Rust => "rs",
+            SupportedRuntime::C => "c",
         }
     }
 
@@ -27,6 +29,7 @@ impl SupportedRuntime {
         match self {
             SupportedRuntime::Go => "go.mod",
             SupportedRuntime::Rust => "Cargo.toml",
+            SupportedRuntime::C => "Makefile",
         }
     }
 
@@ -35,6 +38,7 @@ impl SupportedRuntime {
         match self {
             SupportedRuntime::Go => "go",
             SupportedRuntime::Rust => "cargo",
+            SupportedRuntime::C => "make",
         }
     }
 
@@ -42,7 +46,8 @@ impl SupportedRuntime {
     pub fn build_args(&self) -> Vec<&'static str> {
         match self {
             SupportedRuntime::Go => vec!["build", "."],
-            SupportedRuntime::Rust => vec!["check"],
+            SupportedRuntime::Rust => vec!["build"],
+            SupportedRuntime::C => vec![],
         }
     }
 
@@ -51,12 +56,13 @@ impl SupportedRuntime {
         match self {
             SupportedRuntime::Go => "go",
             SupportedRuntime::Rust => "rust",
+            SupportedRuntime::C => "c",
         }
     }
 
     /// all supported runtimes
     pub fn all() -> &'static [SupportedRuntime] {
-        &[SupportedRuntime::Go, SupportedRuntime::Rust]
+        &[SupportedRuntime::Go, SupportedRuntime::Rust, SupportedRuntime::C]
     }
 
     /// detect runtime from workspace directory by checking for module files
@@ -95,7 +101,8 @@ impl FromStr for SupportedRuntime {
         match s.to_lowercase().as_str() {
             "go" | "golang" => Ok(SupportedRuntime::Go),
             "rust" | "rs" => Ok(SupportedRuntime::Rust),
-            _ => Err(format!("unsupported runtime '{}'. supported: go, rust", s)),
+            "c" => Ok(SupportedRuntime::C),
+            _ => Err(format!("unsupported runtime '{}'. supported: go, rust, c", s)),
         }
     }
 }
@@ -108,18 +115,21 @@ mod tests {
     fn test_extension() {
         assert_eq!(SupportedRuntime::Go.extension(), "go");
         assert_eq!(SupportedRuntime::Rust.extension(), "rs");
+        assert_eq!(SupportedRuntime::C.extension(), "c");
     }
 
     #[test]
     fn test_module_file() {
         assert_eq!(SupportedRuntime::Go.module_file(), "go.mod");
         assert_eq!(SupportedRuntime::Rust.module_file(), "Cargo.toml");
+        assert_eq!(SupportedRuntime::C.module_file(), "Makefile");
     }
 
     #[test]
     fn test_build_command() {
         assert_eq!(SupportedRuntime::Go.build_command(), "go");
         assert_eq!(SupportedRuntime::Rust.build_command(), "cargo");
+        assert_eq!(SupportedRuntime::C.build_command(), "make");
     }
 
     #[test]
@@ -140,6 +150,10 @@ mod tests {
             "rs".parse::<SupportedRuntime>().unwrap(),
             SupportedRuntime::Rust
         );
+        assert_eq!(
+            "c".parse::<SupportedRuntime>().unwrap(),
+            SupportedRuntime::C
+        );
         assert!("python".parse::<SupportedRuntime>().is_err());
     }
 
@@ -147,13 +161,15 @@ mod tests {
     fn test_display() {
         assert_eq!(format!("{}", SupportedRuntime::Go), "go");
         assert_eq!(format!("{}", SupportedRuntime::Rust), "rust");
+        assert_eq!(format!("{}", SupportedRuntime::C), "c");
     }
 
     #[test]
     fn test_all_runtimes() {
         let all = SupportedRuntime::all();
-        assert_eq!(all.len(), 2);
+        assert_eq!(all.len(), 3);
         assert!(all.contains(&SupportedRuntime::Go));
         assert!(all.contains(&SupportedRuntime::Rust));
+        assert!(all.contains(&SupportedRuntime::C));
     }
 }

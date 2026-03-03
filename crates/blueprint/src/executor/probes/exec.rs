@@ -15,8 +15,22 @@ pub async fn execute_with_timeout(
     ctx: &Context,
     timeout: Option<Duration>,
 ) -> Result<ProbeResult, ExecutionError> {
-    let command = ctx.interpolate(&probe.command);
-    let args: Vec<String> = probe.args.iter().map(|a| ctx.interpolate(a)).collect();
+    let interpolated_cmd = ctx.interpolate(&probe.command);
+    let explicit_args: Vec<String> = probe.args.iter().map(|a| ctx.interpolate(a)).collect();
+
+    // when a variable like $BUILD expands to "go build .", the whole string ends
+    // up as the command with no args. Command::new("go build .") would fail
+    // because there's no binary named "go build .". re-split when the original
+    // probe had no args but the interpolated command contains spaces.
+    let (command, args) = if explicit_args.is_empty() && interpolated_cmd.contains(' ') {
+        let parts: Vec<&str> = interpolated_cmd.split_whitespace().collect();
+        (
+            parts[0].to_string(),
+            parts[1..].iter().map(|s| s.to_string()).collect(),
+        )
+    } else {
+        (interpolated_cmd, explicit_args)
+    };
 
     let start = Instant::now();
 
@@ -121,6 +135,25 @@ mod tests {
         let result = result.unwrap_or_else(|e| panic!("{e}"));
 
         assert!(matches!(result.fields.get("stdout"), Some(Value::String(s)) if s == "world"));
+    }
+
+    #[tokio::test]
+    async fn test_exec_variable_expands_to_full_command() {
+        // simulates `probe exec $BUILD` where $BUILD = "echo hello world"
+        // the probe has no explicit args, so the interpolated command must be re-split
+        let probe = ExecProbe {
+            command: "$BUILD".to_string(),
+            args: vec![],
+        };
+        let mut ctx = Context::new(Config::default(), ExecutionMode::Validate);
+        ctx.set_variable("$BUILD", Value::String("echo hello world".into()));
+
+        let result = execute(&probe, &ctx).await;
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|e| panic!("{e}"));
+
+        assert!(matches!(result.fields.get("stdout"), Some(Value::String(s)) if s == "hello world"));
+        assert!(matches!(result.fields.get("exit"), Some(Value::Int(0))));
     }
 
     #[tokio::test]

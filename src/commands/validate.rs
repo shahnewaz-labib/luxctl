@@ -141,9 +141,9 @@ pub async fn validate_all(include_passed: bool, detailed: bool) -> Result<()> {
         ui.task_separator(i + 1, total_tasks, &task.slug);
 
         // run validators and submit results (pass state for auto-refresh)
-        let workspace = state
-            .get_active()
-            .map(|l| PathBuf::from(&l.workspace));
+        let active = state.get_active();
+        let workspace = active.map(|l| PathBuf::from(&l.workspace));
+        let runtime = active.and_then(|l| l.runtime.clone());
 
         run_task_validators(
             &client,
@@ -153,6 +153,7 @@ pub async fn validate_all(include_passed: bool, detailed: bool) -> Result<()> {
             workspace,
             detailed,
             &completed_slugs,
+            runtime.as_deref(),
         )
         .await?;
     }

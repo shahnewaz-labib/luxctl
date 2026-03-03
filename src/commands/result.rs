@@ -78,9 +78,9 @@ pub async fn result(task_id: &str, inputs: &[String], project_slug: Option<&str>
 
     let bp_source = task_data.blueprint.as_deref().unwrap_or_default();
     let user_inputs = blueprint_runner::parse_inputs(inputs)?;
-    let workspace = state
-        .get_active()
-        .map(|l| PathBuf::from(&l.workspace));
+    let active = state.get_active();
+    let workspace = active.map(|l| PathBuf::from(&l.workspace));
+    let runtime = active.and_then(|l| l.runtime.clone());
 
     let ui = RunUI::new(&task_data.slug, 0);
     ui.header();
@@ -105,7 +105,7 @@ pub async fn result(task_id: &str, inputs: &[String], project_slug: Option<&str>
     ui.step("Running blueprint (result mode)...");
 
     let bp_result =
-        match blueprint_runner::run_result(bp_source, &task_data.slug, &user_inputs, workspace)
+        match blueprint_runner::run_result(bp_source, &task_data.slug, &user_inputs, workspace, runtime.as_deref())
             .await
         {
             Ok(r) => r,

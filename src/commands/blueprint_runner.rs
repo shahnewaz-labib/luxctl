@@ -7,9 +7,11 @@ use blueprint::executor::context::{Context, ExecutionMode};
 use blueprint::executor::Engine;
 use blueprint::parser::parse;
 use blueprint::reporter::format_api_payload;
+use blueprint::transpiler::ir::Value;
 use blueprint::transpiler::{transpile, BlueprintResult, Status};
 
 use crate::api::{SubmitAttemptRequest, Task, TaskOutcome};
+use crate::runtime::SupportedRuntime;
 
 /// which validation system a task uses
 pub enum TaskSystem<'a> {
@@ -27,11 +29,21 @@ pub fn detect_system(task: &Task) -> TaskSystem<'_> {
     TaskSystem::None
 }
 
+/// build the full build command string from a runtime name (e.g. "go" → "go build .")
+fn build_command_for_runtime(runtime_str: &str) -> Option<String> {
+    let rt: SupportedRuntime = runtime_str.parse().ok()?;
+    let parts: Vec<&str> = std::iter::once(rt.build_command())
+        .chain(rt.build_args())
+        .collect();
+    Some(parts.join(" "))
+}
+
 /// run a blueprint in Validate mode (probe-only, no user inputs)
 pub async fn run_validate(
     bp_source: &str,
     task_slug: &str,
     workspace: Option<PathBuf>,
+    runtime: Option<&str>,
 ) -> Result<BlueprintResult> {
     log::debug!("parsing blueprint ({} bytes)...", bp_source.len());
     let ast = parse(bp_source)
@@ -52,6 +64,9 @@ pub async fn run_validate(
     if let Some(ws) = workspace.clone() {
         ctx = ctx.with_workspace(ws);
     }
+    if let Some(build_cmd) = runtime.and_then(build_command_for_runtime) {
+        ctx.set_variable("$BUILD", Value::String(build_cmd));
+    }
     log::debug!("workspace: {:?}, task: {}", workspace, task_slug);
     let mut engine = Engine::new(ctx).with_task(task_slug);
 
@@ -71,6 +86,7 @@ pub async fn run_result(
     task_slug: &str,
     user_inputs: &HashMap<String, String>,
     workspace: Option<PathBuf>,
+    runtime: Option<&str>,
 ) -> Result<BlueprintResult> {
     let ast = parse(bp_source)
         .map_err(|e| color_eyre::eyre::eyre!("parse error at line {}: {}", e.line, e.message))?;
@@ -86,6 +102,9 @@ pub async fn run_result(
     let mut ctx = Context::new(bp.config.clone(), ExecutionMode::Result);
     if let Some(ws) = workspace {
         ctx = ctx.with_workspace(ws);
+    }
+    if let Some(build_cmd) = runtime.and_then(build_command_for_runtime) {
+        ctx.set_variable("$BUILD", Value::String(build_cmd));
     }
     for (key, value) in user_inputs {
         ctx.set_user_input(key, value);
@@ -272,7 +291,7 @@ mod tests {
             file_path.display()
         );
 
-        let result = run_validate(&bp_source, "test-task", None).await.unwrap();
+        let result = run_validate(&bp_source, "test-task", None, None).await.unwrap();
         assert!(matches!(result.status, Status::Passed));
     }
 
@@ -287,13 +306,13 @@ mod tests {
     }
 }"#;
 
-        let result = run_validate(bp_source, "test-task", None).await.unwrap();
+        let result = run_validate(bp_source, "test-task", None, None).await.unwrap();
         assert!(matches!(result.status, Status::Failed));
     }
 
     #[tokio::test]
     async fn test_run_validate_parse_error() {
-        let result = run_validate("not valid blueprint syntax {{{", "test-task", None).await;
+        let result = run_validate("not valid blueprint syntax {{{", "test-task", None, None).await;
         assert!(result.is_err());
     }
 }
