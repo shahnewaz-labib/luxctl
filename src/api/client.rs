@@ -15,11 +15,12 @@ use crate::{config::Config, VERSION};
 
 type HmacSha256 = Hmac<Sha256>;
 
-// baked at compile time; falls back to dev secret so open-source contributors
-// and `cargo test` work without setting the env var.
-const CLIENT_SECRET: &str = match option_env!("LUXCTL_CLIENT_SECRET") {
+const DEV_SECRET: &str = "dev-secret-0";
+
+// baked at compile time for release builds; unused in DEV mode.
+const RELEASE_SECRET: &str = match option_env!("LUXCTL_CLIENT_SECRET") {
     Some(v) => v,
-    None => "dev-secret-0",
+    None => DEV_SECRET,
 };
 
 use super::types::{
@@ -30,7 +31,7 @@ use super::types::{
 
 /// Produce (timestamp, hex-encoded HMAC-SHA256) for the given HTTP method + path.
 /// The payload format is "timestamp.METHOD.path", matching Laravel's VerifyLuxctlClient middleware.
-fn sign_request(method: &str, path: &str) -> (String, String) {
+fn sign_request(method: &str, path: &str, secret: &str) -> (String, String) {
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -39,7 +40,7 @@ fn sign_request(method: &str, path: &str) -> (String, String) {
 
     let payload = format!("{}.{}.{}", timestamp, method, path);
 
-    let Some(mut mac) = HmacSha256::new_from_slice(CLIENT_SECRET.as_bytes()).ok() else {
+    let Some(mut mac) = HmacSha256::new_from_slice(secret.as_bytes()).ok() else {
         return (timestamp, String::new());
     };
     mac.update(payload.as_bytes());
@@ -48,8 +49,8 @@ fn sign_request(method: &str, path: &str) -> (String, String) {
 }
 
 /// Build the three signing headers that Laravel expects on every /api/v1/* request.
-fn signing_headers(method: &str, path: &str) -> Result<HeaderMap> {
-    let (timestamp, signature) = sign_request(method, path);
+fn signing_headers(method: &str, path: &str, secret: &str) -> Result<HeaderMap> {
+    let (timestamp, signature) = sign_request(method, path, secret);
     let mut headers = HeaderMap::new();
     headers.insert("X-Luxctl-Signature", signature.parse()?);
     headers.insert("X-Luxctl-Timestamp", timestamp.parse()?);
@@ -85,6 +86,13 @@ impl LighthouseAPIClient {
         LighthouseAPIClient {
             token: Some(SecretString::from(config.expose_token())),
             ..Default::default()
+        }
+    }
+
+    fn client_secret(&self) -> &'static str {
+        match self.env {
+            Env::DEV => DEV_SECRET,
+            Env::RELEASE => RELEASE_SECRET,
         }
     }
 
@@ -131,7 +139,7 @@ impl LighthouseAPIClient {
         let url = format!("{}/api/{}/{}", self.base_url, self.api_version, endpoint);
         let path = format!("/api/{}/{}", self.api_version, endpoint);
 
-        let mut merged = signing_headers("GET", &path)?;
+        let mut merged = signing_headers("GET", &path, self.client_secret())?;
         if let Some(extra) = headers {
             merged.extend(extra);
         }
@@ -165,7 +173,7 @@ impl LighthouseAPIClient {
         let url = format!("{}/api/{}/{}", self.base_url, self.api_version, endpoint);
         let path = format!("/api/{}/{}", self.api_version, endpoint);
 
-        let mut merged = signing_headers("POST", &path)?;
+        let mut merged = signing_headers("POST", &path, self.client_secret())?;
         if let Some(extra) = headers {
             merged.extend(extra);
         }
@@ -738,7 +746,7 @@ mod tests {
 
     #[test]
     fn test_sign_request_produces_valid_hex() {
-        let (timestamp, signature) = sign_request("GET", "/api/v1/projects");
+        let (timestamp, signature) = sign_request("GET", "/api/v1/projects", DEV_SECRET);
         // timestamp is a numeric string
         assert!(timestamp.parse::<u64>().is_ok());
         // signature is 64-char hex (SHA-256 = 32 bytes = 64 hex chars)
@@ -748,8 +756,8 @@ mod tests {
 
     #[test]
     fn test_sign_request_differs_by_method() {
-        let (_, sig_get) = sign_request("GET", "/api/v1/projects");
-        let (_, sig_post) = sign_request("POST", "/api/v1/projects");
+        let (_, sig_get) = sign_request("GET", "/api/v1/projects", DEV_SECRET);
+        let (_, sig_post) = sign_request("POST", "/api/v1/projects", DEV_SECRET);
         // different methods → different signatures (timestamps may differ too, but
         // even with same timestamp the payload is different)
         // we can't assert inequality because timestamps could change the output;
@@ -760,8 +768,8 @@ mod tests {
 
     #[test]
     fn test_sign_request_differs_by_path() {
-        let (ts1, sig1) = sign_request("GET", "/api/v1/projects");
-        let (ts2, sig2) = sign_request("GET", "/api/v1/tasks");
+        let (ts1, sig1) = sign_request("GET", "/api/v1/projects", DEV_SECRET);
+        let (ts2, sig2) = sign_request("GET", "/api/v1/tasks", DEV_SECRET);
         // if by chance timestamps are the same, paths differ → signatures differ
         if ts1 == ts2 {
             assert_ne!(sig1, sig2);
@@ -770,7 +778,7 @@ mod tests {
 
     #[test]
     fn test_signing_headers_contain_required_keys() {
-        let headers = signing_headers("GET", "/api/v1/projects").unwrap();
+        let headers = signing_headers("GET", "/api/v1/projects", DEV_SECRET).unwrap();
         assert!(headers.contains_key("X-Luxctl-Signature"));
         assert!(headers.contains_key("X-Luxctl-Timestamp"));
         assert!(headers.contains_key("X-Luxctl-Version"));
