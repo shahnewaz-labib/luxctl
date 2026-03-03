@@ -184,32 +184,36 @@ async fn run_blueprint_task(
         }
     };
 
-    CliReporter::print_result_with_context(&bp_result, detailed, completed_slugs);
-
-    // submit attempt
+    // submit before printing so we can show XP on the summary line
     let attempt_request = blueprint_runner::to_attempt_request(&bp_result, project_slug, task.id);
-    submit_and_update(client, &attempt_request, &ui, task, state_ctx).await;
+    let points = submit_and_update(client, &attempt_request, task, state_ctx).await;
+
+    CliReporter::print_result_with_context(&bp_result, detailed, completed_slugs, points);
 
     run_epilogue(&ui, &task.epilogue).await;
     Ok(())
 }
 
-/// submit attempt to API and update local state cache
+/// submit attempt to API and update local state cache.
+/// returns points earned on first-time pass, None otherwise.
 pub async fn submit_and_update(
     client: &LighthouseAPIClient,
     attempt_request: &SubmitAttemptRequest,
-    ui: &RunUI,
     task: &Task,
     state_ctx: Option<(&mut ProjectState, &str)>,
-) {
+) -> Option<i32> {
     match client.submit_attempt(attempt_request).await {
         Ok(response) => {
             log::debug!("attempt recorded: {:?}", response);
-            if response.data.is_reattempt {
+
+            let points = if response.data.is_reattempt {
                 log::debug!("re-attempt recorded (no additional points)");
+                None
             } else if response.data.task_outcome == "passed" {
-                ui.points_earned(response.data.points_achieved);
-            }
+                Some(response.data.points_achieved)
+            } else {
+                None
+            };
 
             if let Some((state, token)) = state_ctx {
                 let new_status = if response.data.task_outcome == "passed" {
@@ -222,10 +226,13 @@ pub async fn submit_and_update(
                     log::warn!("failed to save state: {}", e);
                 }
             }
+
+            points
         }
         Err(err) => {
             log::error!("failed to submit attempt: {}", err);
             oops!("failed to submit results: {}", err);
+            None
         }
     }
 }

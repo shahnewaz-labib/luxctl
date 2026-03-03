@@ -9,15 +9,17 @@ const DETAIL_LINE_WIDTH: usize = 60;
 
 impl CliReporter {
     pub fn print_result(result: &BlueprintResult, detailed: bool) {
-        Self::print_result_with_context(result, detailed, &HashSet::new());
+        Self::print_result_with_context(result, detailed, &HashSet::new(), None);
     }
 
     /// render with knowledge of which task slugs were previously completed,
-    /// so skipped-but-passed phases show ✓ instead of ⊘
+    /// so skipped-but-passed phases show ✓ instead of ⊘.
+    /// when points is Some(n) and n > 0, the XP earned is shown on the summary line.
     pub fn print_result_with_context(
         result: &BlueprintResult,
         detailed: bool,
         completed_slugs: &HashSet<String>,
+        points: Option<i32>,
     ) {
         println!();
 
@@ -54,13 +56,17 @@ impl CliReporter {
 
         println!();
 
-        let duration = format!("{}ms", result.duration_ms);
+        let duration = format!("{} ms", result.duration_ms);
 
         match &result.status {
             Status::Passed => {
+                let xp = match points {
+                    Some(n) if n > 0 => format!("+{} XP. ", n),
+                    _ => String::new(),
+                };
                 println!(
                     "  {} {}",
-                    "all checks passed.".green().bold(),
+                    format!("{}all checks passed.", xp).green().bold(),
                     format!("({})", duration).dimmed()
                 );
             }

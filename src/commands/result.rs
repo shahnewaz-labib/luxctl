@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use blueprint::reporter::CliReporter;
@@ -115,19 +116,18 @@ pub async fn result(task_id: &str, inputs: &[String], project_slug: Option<&str>
             }
         };
 
-    CliReporter::print_result(&bp_result, false);
-
-    // submit attempt
+    // submit before printing so we can show XP on the summary line
     let attempt_request =
         blueprint_runner::to_attempt_request(&bp_result, &project_slug, task_data.id);
-    submit_and_update(
+    let points = submit_and_update(
         &client,
         &attempt_request,
-        &ui,
         task_data,
         Some((&mut state, &token)),
     )
     .await;
+
+    CliReporter::print_result_with_context(&bp_result, false, &HashSet::new(), points);
 
     // epilogue
     if !task_data.epilogue.is_empty() {
