@@ -115,9 +115,14 @@ pub struct Terminal {
     pub tier: String,
     #[serde(default)]
     pub blueprint: Option<String>,
-    /// map of relative path → file content, written to workspace before validation
+    /// nested map: language → (filename → content).
+    /// caller picks a language key to get the flat file map for injection.
     #[serde(default)]
-    pub test_files: Option<HashMap<String, String>>,
+    pub test_files: Option<HashMap<String, HashMap<String, String>>>,
+    #[serde(default)]
+    pub languages: Option<Vec<String>>,
+    #[serde(default)]
+    pub run_commands: Option<HashMap<String, String>>,
 }
 
 impl Terminal {
@@ -127,6 +132,22 @@ impl Terminal {
 
     pub fn has_test_files(&self) -> bool {
         self.test_files.as_ref().is_some_and(|m| !m.is_empty())
+    }
+
+    /// extract test files for a specific language, falling back to first available
+    pub fn test_files_for_lang(&self, lang: Option<&str>) -> HashMap<String, String> {
+        let Some(all) = &self.test_files else {
+            return HashMap::new();
+        };
+
+        if let Some(lang) = lang {
+            if let Some(files) = all.get(lang) {
+                return files.clone();
+            }
+        }
+
+        // fall back to first language that has files
+        all.values().next().cloned().unwrap_or_default()
     }
 }
 
@@ -793,7 +814,13 @@ mod tests {
             "tier": "seeker",
             "blueprint": "blueprint \"LRU Cache\" { }",
             "test_files": {
-                "lru-cache/lru_cache_test.go": "package lru_cache\nimport \"testing\"\n"
+                "go": {
+                    "lru_cache_test.go": "package lru_cache\nimport \"testing\"\n"
+                }
+            },
+            "languages": ["go", "rust"],
+            "run_commands": {
+                "go": "cd /workspace && go test -v ./..."
             }
         }"#;
 
@@ -806,9 +833,12 @@ mod tests {
         assert!(terminal.has_blueprint());
         assert!(terminal.has_test_files());
 
-        let files = terminal.test_files.unwrap();
-        assert_eq!(files.len(), 1);
-        assert!(files.contains_key("lru-cache/lru_cache_test.go"));
+        let go_files = terminal.test_files_for_lang(Some("go"));
+        assert_eq!(go_files.len(), 1);
+        assert!(go_files.contains_key("lru_cache_test.go"));
+
+        assert_eq!(terminal.languages.as_ref().unwrap().len(), 2);
+        assert!(terminal.run_commands.as_ref().unwrap().contains_key("go"));
     }
 
     #[test]

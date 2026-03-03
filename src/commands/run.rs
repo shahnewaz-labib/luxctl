@@ -240,7 +240,7 @@ pub async fn submit_and_update(
 /// run a terminal: inject test_files → run blueprint → clean up.
 /// test files are written to workspace just before execution and removed after,
 /// preventing users from reading them to cheat.
-pub async fn run_terminal(terminal: &Terminal, workspace: &Path, detailed: bool) -> Result<()> {
+pub async fn run_terminal(terminal: &Terminal, workspace: &Path, lang: Option<&str>, detailed: bool) -> Result<()> {
     let ui = RunUI::new(&terminal.slug, 0);
     ui.header();
     ui.blank_line();
@@ -253,7 +253,7 @@ pub async fn run_terminal(terminal: &Terminal, workspace: &Path, detailed: bool)
         }
     };
 
-    let test_files = terminal.test_files.as_ref().cloned().unwrap_or_default();
+    let test_files = terminal.test_files_for_lang(lang);
     let written_paths = write_test_files(workspace, &test_files)?;
 
     ui.step("Running blueprint...");

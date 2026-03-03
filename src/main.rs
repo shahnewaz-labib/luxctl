@@ -208,6 +208,10 @@ enum TerminalAction {
         /// Workspace directory (defaults to current directory)
         #[arg(short = 'w', long, default_value = ".")]
         workspace: String,
+
+        /// Language (go, rust, c) — selects which test files to inject
+        #[arg(short = 'l', long)]
+        lang: Option<String>,
     },
     /// Run the active terminal's blueprint against your solution
     Run {
@@ -375,8 +379,8 @@ async fn main() -> Result<()> {
             TerminalAction::List => {
                 commands::terminal::list().await?;
             }
-            TerminalAction::Start { slug, workspace } => {
-                commands::terminal::start(&slug, &workspace).await?;
+            TerminalAction::Start { slug, workspace, lang } => {
+                commands::terminal::start(&slug, &workspace, lang.as_deref()).await?;
             }
             TerminalAction::Run { detailed } => {
                 commands::terminal::run_active(detailed).await?;

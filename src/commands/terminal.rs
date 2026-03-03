@@ -31,8 +31,8 @@ pub async fn list() -> Result<()> {
     Ok(())
 }
 
-/// handle `luxctl terminal start --slug <slug> [--workspace <path>]`
-pub async fn start(slug: &str, workspace: &str) -> Result<()> {
+/// handle `luxctl terminal start --slug <slug> [--workspace <path>] [--lang <lang>]`
+pub async fn start(slug: &str, workspace: &str, lang: Option<&str>) -> Result<()> {
     let config = Config::load()?;
     if !config.has_auth_token() {
         oops!("not authenticated. Run: `luxctl auth --token $token`");
@@ -54,13 +54,17 @@ pub async fn start(slug: &str, workspace: &str) -> Result<()> {
 
     let workspace_str = canonical.to_string_lossy().to_string();
 
-    // reuse ProjectState with empty tasks — terminals don't have multi-task state
+    // reuse ProjectState with empty tasks — terminals don't have multi-task state.
+    // lang is stored in the runtime field (same purpose: selecting go/rust/c).
     let mut state = ProjectState::load(config.expose_token())?;
-    state.set_active(slug, slug, &[], &workspace_str, None);
+    state.set_active(slug, slug, &[], &workspace_str, lang);
     state.save(config.expose_token())?;
 
     UI::success(&format!("active terminal: {}", slug));
     UI::kv("workspace", &workspace_str);
+    if let Some(lang) = lang {
+        UI::kv("language", lang);
+    }
     UI::note("run `luxctl terminal run` to validate your solution");
 
     Ok(())
@@ -95,7 +99,8 @@ pub async fn run_active(detailed: bool) -> Result<()> {
     };
 
     let workspace = PathBuf::from(&active.workspace);
-    run::run_terminal(&terminal, &workspace, detailed).await
+    let lang = active.runtime.as_deref();
+    run::run_terminal(&terminal, &workspace, lang, detailed).await
 }
 
 /// handle `luxctl terminal status`
