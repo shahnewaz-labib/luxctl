@@ -28,6 +28,16 @@ cargo install luxctl
 cargo install luxctl --version 0.9.0
 ```
 
+## Upgrade
+
+```bash
+# upgrade to latest
+luxctl upgrade
+
+# upgrade to specific version
+luxctl upgrade v0.9.2
+```
+
 ## Quick Start
 
 ```bash

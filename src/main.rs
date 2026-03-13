@@ -93,6 +93,12 @@ enum Commands {
         action: TerminalAction,
     },
 
+    /// Upgrade luxctl to the latest version (or a specific version)
+    Upgrade {
+        /// Target version (e.g. v0.9.2). Defaults to latest release.
+        version: Option<String>,
+    },
+
     /// Check your environment and diagnose issues
     Doctor,
 
@@ -421,6 +427,10 @@ async fn main() -> Result<()> {
                 commands::hints::unlock(&task, &hint).await?;
             }
         },
+
+        Commands::Upgrade { version } => {
+            commands::upgrade::run(version).await?;
+        }
 
         Commands::Doctor => {
             commands::doctor::run().await?;
