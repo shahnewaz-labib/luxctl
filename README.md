@@ -25,7 +25,7 @@ curl -fsSL https://raw.githubusercontent.com/thearyanahmed/luxctl/master/install
 cargo install luxctl
 
 # specific version
-cargo install luxctl --version 0.9.0
+cargo install luxctl --version 0.10.1
 ```
 
 ## Upgrade
@@ -35,7 +35,7 @@ cargo install luxctl --version 0.9.0
 luxctl upgrade
 
 # upgrade to specific version
-luxctl upgrade v0.9.2
+luxctl upgrade v0.10.1
 ```
 
 ## Quick Start
@@ -180,6 +180,9 @@ luxctl export spec.bp --format json
 ```bash
 # check environment and diagnose issues
 luxctl doctor
+
+# print version
+luxctl version
 ```
 
 ## Development
@@ -225,13 +228,13 @@ Contributions are welcome! Here's how to get started:
 
 Releases are automated via GitHub Actions. To create a new release:
 
-1. Update version in both `Cargo.toml` and `src/lib.rs`
+1. Update version in `Cargo.toml` (`src/lib.rs` reads it at compile time via `env!("CARGO_PKG_VERSION")`)
 2. Run `cargo build` to update `Cargo.lock`
 3. Commit and push to master
 4. Wait for Auto Tag workflow to create the version tag
 5. Trigger the Release workflow:
    ```bash
-   gh workflow run Release --field tag=v0.9.0
+   gh workflow run Release --field tag=v0.10.1
    ```
 
 The Release workflow will:

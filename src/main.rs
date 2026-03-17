@@ -102,6 +102,9 @@ enum Commands {
     /// Check your environment and diagnose issues
     Doctor,
 
+    /// Print the current version
+    Version,
+
     /// Project-specific helper tools (e.g., data generators)
     Helper {
         /// Helper name (e.g., 1brc)
@@ -434,6 +437,10 @@ async fn main() -> Result<()> {
 
         Commands::Doctor => {
             commands::doctor::run().await?;
+        }
+
+        Commands::Version => {
+            println!("luxctl v{VERSION}");
         }
 
         Commands::Helper {
