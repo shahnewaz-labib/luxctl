@@ -37,9 +37,10 @@ detect_platform() {
     ARCH="$(uname -m)"
 
     case "$OS" in
-        Linux)  PLATFORM="linux" ;;
-        Darwin) PLATFORM="macos" ;;
-        *)      PLATFORM="unknown" ;;
+        Linux)          PLATFORM="linux" ;;
+        Darwin)         PLATFORM="macos" ;;
+        MINGW*|MSYS*|CYGWIN*)  PLATFORM="windows" ;;
+        *)              PLATFORM="unknown" ;;
     esac
 
     case "$ARCH" in
@@ -52,10 +53,12 @@ detect_platform() {
 # resolve the asset filename for this platform, empty string if no binary available
 resolve_asset() {
     case "${PLATFORM}-${ARCH}" in
-        linux-x86_64)   ASSET="luxctl-linux-x86_64.tar.gz" ;;
-        linux-aarch64)  ASSET="luxctl-linux-aarch64.tar.gz" ;;
-        macos-aarch64)  ASSET="luxctl-macos-aarch64.tar.gz" ;;
-        *)              ASSET="" ;;
+        linux-x86_64)    ASSET="luxctl-linux-x86_64.tar.gz" ;;
+        linux-aarch64)   ASSET="luxctl-linux-aarch64.tar.gz" ;;
+        macos-aarch64)   ASSET="luxctl-macos-aarch64.tar.gz" ;;
+        macos-x86_64)    ASSET="luxctl-macos-x86_64.tar.gz" ;;
+        windows-x86_64)  ASSET="luxctl-windows-x86_64.exe.zip" ;;
+        *)               ASSET="" ;;
     esac
 }
 
@@ -84,12 +87,41 @@ download_binary() {
     info "Downloading luxctl ${VERSION} (${PLATFORM}/${ARCH})..."
 
     if check_cmd curl; then
-        curl -fsSL "$url" -o "${tmpdir}/luxctl.tar.gz"
+        curl -fsSL "$url" -o "${tmpdir}/${ASSET}"
     elif check_cmd wget; then
-        wget -qO "${tmpdir}/luxctl.tar.gz" "$url"
+        wget -qO "${tmpdir}/${ASSET}" "$url"
     fi
 
-    tar -xzf "${tmpdir}/luxctl.tar.gz" -C "$tmpdir"
+    # windows assets are .zip with an .exe inside
+    if [ "$PLATFORM" = "windows" ]; then
+        if check_cmd unzip; then
+            unzip -q "${tmpdir}/${ASSET}" -d "$tmpdir"
+        elif check_cmd 7z; then
+            7z x "${tmpdir}/${ASSET}" -o"$tmpdir" -y >/dev/null
+        else
+            error "unzip or 7z is required to extract the Windows binary"
+        fi
+
+        local exe_name="${ASSET%.zip}"
+        if [ -f "${tmpdir}/${exe_name}" ]; then
+            mv "${tmpdir}/${exe_name}" "${tmpdir}/luxctl.exe"
+        fi
+
+        local bin="luxctl.exe"
+        local dest="${INSTALL_DIR}/luxctl.exe"
+
+        if [ -w "$INSTALL_DIR" ]; then
+            mv "${tmpdir}/${bin}" "$dest"
+        else
+            info "Writing to ${INSTALL_DIR} requires elevated permissions..."
+            mv "${tmpdir}/${bin}" "$dest"
+        fi
+
+        return
+    fi
+
+    # unix: .tar.gz
+    tar -xzf "${tmpdir}/${ASSET}" -C "$tmpdir"
 
     # binary inside the tarball is named after the asset (e.g. luxctl-macos-aarch64)
     local bin_name="${ASSET%.tar.gz}"
@@ -144,6 +176,13 @@ main() {
     echo ""
 
     detect_platform
+
+    # default install dir for windows is user-writable
+    if [ "$PLATFORM" = "windows" ] && [ "$INSTALL_DIR" = "/usr/local/bin" ]; then
+        INSTALL_DIR="${USERPROFILE:-$HOME}/bin"
+        mkdir -p "$INSTALL_DIR"
+    fi
+
     resolve_asset
 
     if [ -z "$VERSION" ]; then
@@ -157,11 +196,16 @@ main() {
     fi
 
     # verify
+    local bin_path="${INSTALL_DIR}/luxctl"
+    if [ "$PLATFORM" = "windows" ]; then
+        bin_path="${INSTALL_DIR}/luxctl.exe"
+    fi
+
     if check_cmd luxctl; then
         INSTALLED_VERSION=$(luxctl --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "unknown")
         success "luxctl ${INSTALLED_VERSION} installed successfully!"
-    elif [ -f "${INSTALL_DIR}/luxctl" ]; then
-        success "luxctl installed to ${INSTALL_DIR}/luxctl"
+    elif [ -f "$bin_path" ]; then
+        success "luxctl installed to ${bin_path}"
         echo ""
         echo "Make sure ${INSTALL_DIR} is in your PATH."
     else
