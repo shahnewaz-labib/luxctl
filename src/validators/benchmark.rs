@@ -5,7 +5,7 @@
 use crate::config::Config;
 use crate::state::ProjectState;
 use crate::tasks::TestCase;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Instant;
 use tokio::process::Command;
@@ -72,7 +72,7 @@ async fn run_command(cmd_str: &str, workspace: &PathBuf) -> Result<(String, Stri
 }
 
 /// read expected output from file
-fn read_expected(path: &str, workspace: &PathBuf) -> Result<String, String> {
+fn read_expected(path: &str, workspace: &Path) -> Result<String, String> {
     let full_path = if path.starts_with('/') {
         PathBuf::from(path)
     } else {

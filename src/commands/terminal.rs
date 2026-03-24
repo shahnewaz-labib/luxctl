@@ -32,7 +32,7 @@ pub async fn list() -> Result<()> {
 }
 
 /// handle `luxctl terminal start --slug <slug> [--workspace <path>] [--lang <lang>]`
-pub async fn start(slug: &str, workspace: &str, lang: Option<&str>) -> Result<()> {
+pub fn start(slug: &str, workspace: &str, lang: Option<&str>) -> Result<()> {
     let config = Config::load()?;
     if !config.has_auth_token() {
         oops!("not authenticated. Run: `luxctl auth --token $token`");
@@ -79,13 +79,12 @@ pub async fn run_active(detailed: bool) -> Result<()> {
     }
 
     let state = ProjectState::load(config.expose_token())?;
-    let active = match state.get_active() {
-        Some(l) => l.clone(),
-        None => {
-            oops!("no active terminal");
-            say!("run `luxctl terminal start --slug <slug>` first");
-            return Ok(());
-        }
+    let active = if let Some(l) = state.get_active() {
+        l.clone()
+    } else {
+        oops!("no active terminal");
+        say!("run `luxctl terminal start --slug <slug>` first");
+        return Ok(());
     };
 
     let client = LighthouseAPIClient::from_config(&config);

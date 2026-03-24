@@ -84,16 +84,12 @@ pub async fn run(version: Option<String>) -> Result<()> {
     println!("current version: {VERSION}");
 
     // resolve target version
-    let target_tag = match version {
-        Some(v) => {
-            let normalized = normalize_version(&v);
-            // ensure it has 'v' prefix for the download URL
-            format!("v{normalized}")
-        }
-        None => {
-            println!("checking for latest release...");
-            fetch_latest_version().await?
-        }
+    let target_tag = if let Some(v) = version {
+        let normalized = normalize_version(&v);
+        format!("v{normalized}")
+    } else {
+        println!("checking for latest release...");
+        fetch_latest_version().await?
     };
 
     let target_version = normalize_version(&target_tag);

@@ -128,7 +128,7 @@ impl Message {
                 terminal.name.bold(),
                 format!("/{}", terminal.slug).dimmed()
             );
-            if let Some(ref tier) = Some(&terminal.tier) {
+            if let Some(tier) = Some(&terminal.tier) {
                 println!("   {}", tier.dimmed());
             }
             println!();

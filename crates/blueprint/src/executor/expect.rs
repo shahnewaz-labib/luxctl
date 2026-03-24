@@ -209,10 +209,10 @@ fn value_eq(actual: &Value, expected: &ExpectedValue) -> bool {
         (Value::Int(a), ExpectedValue::Int(b)) => a == b,
         (Value::String(a), ExpectedValue::Str(b)) => a.trim() == b.trim(),
         (Value::String(a), ExpectedValue::Int(b)) => {
-            a.trim().parse::<i64>().map_or(false, |n| n == *b)
+            a.trim().parse::<i64>() == Ok(*b)
         }
         (Value::Int(a), ExpectedValue::Str(b)) => {
-            b.trim().parse::<i64>().map_or(false, |n| n == *a)
+            b.trim().parse::<i64>() == Ok(*a)
         }
         (Value::Bool(a), ExpectedValue::Bool(b)) => a == b,
         (Value::String(a), ExpectedValue::Bool(b)) => match a.trim() {
@@ -252,7 +252,7 @@ fn value_matches(actual: &Value, expected: &ExpectedValue) -> bool {
             .unwrap_or(s.as_str()),
         _ => return false,
     };
-    regex::Regex::new(pattern).map_or(false, |re| re.is_match(actual_str.trim()))
+    regex::Regex::new(pattern).is_ok_and(|re| re.is_match(actual_str.trim()))
 }
 
 fn value_matches_file(actual: &Value, expected: &ExpectedValue) -> bool {

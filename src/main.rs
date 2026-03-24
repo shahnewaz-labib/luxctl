@@ -389,7 +389,7 @@ async fn main() -> Result<()> {
                 commands::terminal::list().await?;
             }
             TerminalAction::Start { slug, workspace, lang } => {
-                commands::terminal::start(&slug, &workspace, lang.as_deref()).await?;
+                commands::terminal::start(&slug, &workspace, lang.as_deref())?;
             }
             TerminalAction::Run { detailed } => {
                 commands::terminal::run_active(detailed).await?;
