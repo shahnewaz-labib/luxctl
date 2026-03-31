@@ -185,6 +185,17 @@ luxctl doctor
 luxctl version
 ```
 
+### Shell Completions
+
+```bash
+# generate completions for your shell
+luxctl completions bash >> ~/.bashrc
+luxctl completions zsh > ~/.zfunc/_luxctl
+luxctl completions fish > ~/.config/fish/completions/luxctl.fish
+
+# supported shells: bash, zsh, fish, elvish, powershell
+```
+
 ## Development
 
 ```bash
